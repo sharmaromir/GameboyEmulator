@@ -2,7 +2,7 @@ CPP_COMPILER ?= g++
 OPT ?= 3
 CCFLAGS = -Wall -O${OPT} -g -std=c++17
 
-EMULATOR = cpu.run
+EMULATOR = .run
 
 # Collect all .cc sources and corresponding object files
 SRCS := $(wildcard *.cc)

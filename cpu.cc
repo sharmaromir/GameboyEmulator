@@ -3,88 +3,55 @@
 #include <functional>
 #include <memory>
 
-#include "debug.h"
-// #include "globals.h"
+#include "cpu.h"
 
-#define MAX_ROM_SIZE 0x200000
-#define PC_START 0x100
+CPU::CPU(BYTE* rom) : pc(PC_START), rom(rom), af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), cycles(0) {
+    r8 = {
+        [this]() -> BYTE& { return B; },
+        [this]() -> BYTE& { return C; },
+        [this]() -> BYTE& { return D; },
+        [this]() -> BYTE& { return E; },
+        [this]() -> BYTE& { return H; },
+        [this]() -> BYTE& { return L; },
+        [this, rom]() -> BYTE& { return rom[HL]; },  // dynamically resolved
+        [this]() -> BYTE& { return A; }
+    };
 
-typedef unsigned char BYTE;
-typedef char SIGNED_BYTE;
-typedef unsigned short WORD;
-typedef signed short SIGNED_WORD;
+    r16 = {
+        [this]() -> WORD& { return BC; },
+        [this]() -> WORD& { return DE; },
+        [this]() -> WORD& { return HL; },
+        [this]() -> WORD& { return SP; }
+    };
 
-BYTE rom[MAX_ROM_SIZE];
-BYTE cycles;
-Register af, bc, de, hl, sp, pc;
-#define Z (af.low>>7)&1
-#define N (af.low>>6)&1
-#define Half (af.low>>5)&1
-#define Carry (af.low>>4)&1
-#define A af.high
-#define F af.low
-#define B bc.high
-#define C bc.low
-#define D de.high
-#define E de.low
-#define H hl.high
-#define L hl.low
-#define AF af.word
-#define BC bc.word
-#define DE de.word
-#define HL hl.word
-#define SP sp.word
-#define PC pc.word
-#define splow sp.low
-#define sphigh sp.high
-#define pclow pc.low
-#define pchigh pc.high
+    r16stk = {
+        [this]() -> Register& { return bc; },
+        [this]() -> Register& { return de; },
+        [this]() -> Register& { return hl; },
+        [this]() -> Register& { return af; }
+    };
+    
+    r16mem = {
+        [this]() -> WORD& { return BC; },
+        [this]() -> WORD& { return DE; },
+        [this]() -> WORD& { return HL; }, // increment
+        [this]() -> WORD& { return HL; } // decrement
+    };
+}
 
-std::vector<std::function<BYTE&()>> r8 = {
-    []() -> BYTE& { return B; },
-    []() -> BYTE& { return C; },
-    []() -> BYTE& { return D; },
-    []() -> BYTE& { return E; },
-    []() -> BYTE& { return H; },
-    []() -> BYTE& { return L; },
-    []() -> BYTE& { return rom[HL]; },  // dynamically resolved
-    []() -> BYTE& { return A; }
-};
-
-std::vector<std::function<WORD&()>> r16 = {
-    []() -> WORD& { return BC; },
-    []() -> WORD& { return DE; },
-    []() -> WORD& { return HL; },
-    []() -> WORD& { return SP; }
-};
-
-std::vector<std::function<Register&()>> r16stk = {
-    []() -> Register& { return bc; },
-    []() -> Register& { return de; },
-    []() -> Register& { return hl; },
-    []() -> Register& { return af; }
-};
-
-std::vector<std::function<WORD&()>> r16mem = {
-    []() -> WORD& { return BC; },
-    []() -> WORD& { return DE; },
-    []() -> WORD& { return HL; }, // increment
-    []() -> WORD& { return HL; } // decrement
-};
-
-static inline void ld_r_r(BYTE r1, BYTE r2) {
+inline void CPU::ld_r_r(BYTE r1, BYTE r2) {
     cycles = 1 + (r2 == 6 || r1 == 6);
     r8[r1]() = r8[r2]();
     PC += 1;
 }
 
-static inline void ld_r_imm(BYTE r){
+inline void CPU::ld_r_imm(BYTE r) {
     cycles = 2 + (r == 6);
     r8[r]() = rom[PC + 1];
     PC += 2;
 }
 
-static inline void ld_a_r16mem(BYTE r){
+inline void CPU::ld_a_r16mem(BYTE r) {
     cycles = 2;
     A = rom[r16mem[r]()];
     if(r == 2) {
@@ -95,7 +62,7 @@ static inline void ld_a_r16mem(BYTE r){
     PC += 1;
 }
 
-static inline void ld_r16mem_a(BYTE r){
+inline void CPU::ld_r16mem_a(BYTE r) {
     cycles = 2;
     rom[r16mem[r]()] = A;
     if(r == 2) {
@@ -106,27 +73,27 @@ static inline void ld_r16mem_a(BYTE r){
     PC += 1;
 }
 
-static inline void ld_rr_nn(BYTE r) {
+inline void CPU::ld_rr_nn(BYTE r) {
     cycles = 3;
     r16[r]() = rom[PC + 1] + (rom[PC + 2] << 8);
     PC += 3;
 }
 
-static inline void push_rr(BYTE r){
+inline void CPU::push_rr(BYTE r) {
     cycles = 4;
     rom[--SP] = (r16stk[r]()).high;
     rom[--SP] = (r16stk[r]()).low;
     PC += 1;
 }
 
-static inline void pop_rr(BYTE r){
+inline void CPU::pop_rr(BYTE r) {
     cycles = 3;
     (r16stk[r]()).low = rom[SP++];
     (r16stk[r]()).high = rom[SP++];
     PC += 1;
 }
 
-static inline void add_r(BYTE carry, BYTE r){
+inline void CPU::add_r(BYTE carry, BYTE r) {
     cycles = 1 + (r == 6);
     A += r8[r]() + (carry ? (F&0b00010000)>>4 : 0);
     F &= 0x0F;
@@ -136,7 +103,7 @@ static inline void add_r(BYTE carry, BYTE r){
     PC += 1;
 }
 
-static inline void sub_r(BYTE carry, BYTE r){
+inline void CPU::sub_r(BYTE carry, BYTE r) {
     cycles = 1 + (r == 6);
     A -= r8[r]() + (carry ? (F&0b00010000)>>4 : 0);
     F &= 0x0F;
@@ -147,7 +114,7 @@ static inline void sub_r(BYTE carry, BYTE r){
     PC += 1;
 }
 
-static inline void cp_r(BYTE r){
+inline void CPU::cp_r(BYTE r) {
     cycles = 1 + (r == 6);
     F &= 0x0F;
     if(A == r8[r]()) F |= 0b10000000; // set zero flag
@@ -156,7 +123,7 @@ static inline void cp_r(BYTE r){
     PC += 1;
 }
 
-static inline void inc_r(BYTE r){
+inline void CPU::inc_r(BYTE r) {
     cycles = 1 + (r == 6)*2;
     r8[r]()++;
     F &= 0x1F;
@@ -165,7 +132,7 @@ static inline void inc_r(BYTE r){
     PC += 1;
 }
 
-static inline void dec_r(BYTE r){
+inline void CPU::dec_r(BYTE r) {
     cycles = 1 + (r == 6)*2;
     r8[r]()--;
     F &= 0x1F;
@@ -174,7 +141,7 @@ static inline void dec_r(BYTE r){
     PC += 1;
 }
 
-static inline void bit_and(BYTE r){
+inline void CPU::bit_and(BYTE r) {
     cycles = 1 + (r == 6);
     A &= r8[r]();
     F &= 0x1F;
@@ -183,7 +150,7 @@ static inline void bit_and(BYTE r){
     PC += 1;
 }
 
-static inline void bit_or(BYTE r){
+inline void CPU::bit_or(BYTE r) {
     cycles = 1 + (r == 6);
     A |= r8[r]();
     F &= 0x1F;
@@ -191,7 +158,7 @@ static inline void bit_or(BYTE r){
     PC += 1;
 }
 
-static inline void bit_xor(BYTE r){
+inline void CPU::bit_xor(BYTE r) {
     cycles = 1 + (r == 6);
     A ^= r8[r]();
     F &= 0x1F;
@@ -199,19 +166,19 @@ static inline void bit_xor(BYTE r){
     PC += 1;
 }
 
-static inline void inc_r16(BYTE r){
+inline void CPU::inc_r16(BYTE r) {
     cycles = 2;
     r16[r]()++;
     PC += 1;
 }
 
-static inline void dec_r16(BYTE r){
+inline void CPU::dec_r16(BYTE r) {
     cycles = 2;
     r16[r]()--;
     PC += 1;
 }
 
-static inline void add_r16(BYTE r){
+inline void CPU::add_r16(BYTE r) {
     cycles = 2;
     HL += r16[r]();
     F &= 0x8F; // clear flags except zero
@@ -224,7 +191,7 @@ static inline void add_r16(BYTE r){
     PC += 1;
 }
 
-static inline void rotate_left_circular(BYTE r){
+inline void CPU::rotate_left_circular(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
     F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
@@ -233,7 +200,7 @@ static inline void rotate_left_circular(BYTE r){
     PC += 1;
 }
 
-static inline void rotate_right_circular(BYTE r){
+inline void CPU::rotate_right_circular(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
     F |= (r8[r]() & 0b00000001) << 4; // set carry flag
@@ -242,7 +209,7 @@ static inline void rotate_right_circular(BYTE r){
     PC += 1;
 }
 
-static inline void rotate_left(BYTE r){
+inline void CPU::rotate_left(BYTE r) {
     cycles = 2 + 2*(r==6);
     BYTE carry = Carry;
     F &= 0x0F; // clear flags
@@ -252,7 +219,7 @@ static inline void rotate_left(BYTE r){
     PC += 1;
 }
 
-static inline void rotate_right(BYTE r){
+inline void CPU::rotate_right(BYTE r) {
     cycles = 2 + 2*(r==6);
     BYTE carry = Carry;
     F &= 0x0F; // clear flags
@@ -262,7 +229,7 @@ static inline void rotate_right(BYTE r){
     PC += 1;
 }
 
-static void sla(BYTE r){
+inline void CPU::sla(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
     F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
@@ -271,7 +238,7 @@ static void sla(BYTE r){
     PC += 1;
 }
 
-static void sra(BYTE r){
+inline void CPU::sra(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
     F |= (r8[r]() & 0b00000001) << 4; // set carry flag
@@ -280,7 +247,7 @@ static void sra(BYTE r){
     PC += 1;
 }
 
-static void srl(BYTE r){
+inline void CPU::srl(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
     F |= (r8[r]() & 0b00000001) << 4; // set carry flag
@@ -289,7 +256,7 @@ static void srl(BYTE r){
     PC += 1;
 }
 
-static void swap(BYTE r){
+inline void CPU::swap(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
     r8[r]() = ((r8[r]() & 0b00001111) << 4) | ((r8[r]() & 0b11110000) >> 4);
@@ -297,11 +264,11 @@ static void swap(BYTE r){
     PC += 1;
 }
 
-static bool test_flag(int flag) {
+inline bool CPU::test_flag(int flag) {
     return ((F & (1 << flag))) ? true : false;
 }
 
-static void jump(bool is_conditional, int flag, int condition) {
+inline void CPU::jump(bool is_conditional, int flag, int condition) {
     WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
     if (!is_conditional || test_flag(flag) == condition) {
         PC = nn;
@@ -312,7 +279,7 @@ static void jump(bool is_conditional, int flag, int condition) {
     }
 }
 
-static void jump_relative(bool is_conditional, int flag, int condition) {
+inline void CPU::jump_relative(bool is_conditional, int flag, int condition) {
     SIGNED_BYTE n = rom[PC + 1];
     if (!is_conditional || test_flag(flag) == condition) {
         PC += n;
@@ -323,7 +290,7 @@ static void jump_relative(bool is_conditional, int flag, int condition) {
     }
 }
 
-static void call(bool is_conditional, int flag, int condition) {
+inline void CPU::call(bool is_conditional, int flag, int condition) {
     WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
     if (!is_conditional || test_flag(flag) == condition) {
         // uhh not sure if i pushed pc to the stack correctly someone check
@@ -337,11 +304,13 @@ static void call(bool is_conditional, int flag, int condition) {
     }
 }
 
-static void ret(bool is_conditional, int flag, int condition) {
+inline void CPU::ret(bool is_conditional, int flag, int condition) {
     
 }
 
-void exec_opc(BYTE opc) {
+uint32_t CPU::exec() {
+    BYTE opc = rom[PC];
+
     printf("THE OPC: %X ", opc);
     switch(opc) {
         // nop
@@ -1424,33 +1393,8 @@ void exec_opc(BYTE opc) {
             std::cerr << "meow?" << std::endl;exit(-1);
             break;
     }
-}
 
-int main(int argc, char** argv) {
-    if (argc != 2) {
-        printf("usage: %s <Game Boy executable file name>\n", argv[0]);
-        exit(-1);
-    }
-    printf("loading rom\n");
-
-    FILE* fin;
-    fin = fopen(argv[1], "rb");
-    fread(rom, 1, MAX_ROM_SIZE, fin);
-    fclose(fin);
-
-    PC = PC_START;
-
-    printf("starting\n");
-    /**
-     * TODO: change while loop into clock cycling
-     */
-    int cycles = 0;
-    while(cycles < 10) {
-        printf("PC: %04X\n", rom[PC]);
-        exec_opc(rom[PC]);
-        cycles++;
-        printf("in loop\n");
-    }
-
-    return 0;
+    uint32_t ret = cycles;
+    cycles = 0;
+    return ret;
 }

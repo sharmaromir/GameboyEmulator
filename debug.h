@@ -1,6 +1,5 @@
-
 #pragma once
 
-extern void missing(char const* file_name, int const line);
+#include "decoder.h"
 
-#define MISSING() missing(__FILE__,__LINE__)
+void d_print_inst(Inst inst);

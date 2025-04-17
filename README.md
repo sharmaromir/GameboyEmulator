@@ -1,9 +1,5 @@
 "# GameboyEmulator" 
 
-test
-
-test 2
-
-test 3
-
-test 4
+run: 
+g++ -O3 -o cpu cpu.cc
+./cpu file-name.gb

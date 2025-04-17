@@ -1,15 +1,18 @@
 #pragma once
 
 #include <string>
-#include <fstream>
+#include <vector>
+#include <memory>
+
+#include "globals.h"
 
 struct Inst {
     
 };
 
 class Decoder {
-    std::ifstream file;
+    BYTE* rom;
 public:
-    Decoder(std::string file_in);
+    Decoder(BYTE* rom) : rom(rom) {};
     Inst next();
 };

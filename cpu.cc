@@ -17,6 +17,10 @@ typedef signed short SIGNED_WORD;
 BYTE rom[MAX_ROM_SIZE];
 BYTE cycles;
 Register af, bc, de, hl, sp, pc;
+
+BYTE IME;   // interrupt master enable
+BYTE IME_next;
+
 #define Z (af.low>>7)&1
 #define N (af.low>>6)&1
 #define Half (af.low>>5)&1
@@ -327,9 +331,8 @@ static void jump_relative(bool is_conditional, int flag, int condition) {
 static void call(bool is_conditional, int flag, int condition) {
     WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
     if (!is_conditional || flag == condition) {
-        // uhh not sure if i pushed pc to the stack correctly someone check
-        rom[--SP] = (r16stk[PC]()).high;
-        rom[--SP] = (r16stk[PC]()).low;
+        rom[--SP] = pchigh;
+        rom[--SP] = pclow;
         PC = nn;
         cycles = 6;
     } else {
@@ -339,8 +342,23 @@ static void call(bool is_conditional, int flag, int condition) {
 }
 
 static void ret(bool is_conditional, int flag, int condition) {
-    // (r16stk[r]()).low = rom[SP++];
-    // (r16stk[r]()).high = rom[SP++];
+    if (!is_conditional) {
+        cycles = 4;
+        PC = rom[SP++] + (rom[SP++] << 8);
+    } else if (flag == condition) {
+        cycles = 5;
+        PC = rom[SP++] + (rom[SP++] << 8);
+    } else {
+        cycles = 2;
+        PC += 1;
+    }
+}
+
+static void restart(BYTE n) {
+    cycles = 4;
+    rom[--SP] = pchigh;
+    rom[--SP] = pclow;
+    PC = n;
 }
 
 void exec_opc(BYTE opc) {
@@ -350,6 +368,7 @@ void exec_opc(BYTE opc) {
         case 0x00:
             // d_missing(opc);
             printf("NOP\n");
+            cycles = 1;
             PC += 1;
             break;
         case 0b01000000:
@@ -1421,6 +1440,64 @@ void exec_opc(BYTE opc) {
             break;
         case 0b11011100:    // cc = 11, C
             call(true, Carry, true);
+            break;
+        // returns
+        case 0xC9: // unconditional
+            ret(false, 0, false);
+            break;
+        case 0b11000000:    // cc = 00, NZ
+            ret(true, Z, false);
+            break;
+        case 0b11001000:    // cc = 01, Z
+            ret(true, Z, true);
+            break;
+        case 0b11010000:    // cc = 10, NC
+            ret(true, Carry, false);
+            break;
+        case 0b11011000:    // cc = 11, C
+            ret(true, Carry, true);
+            break;
+        // return from interrupt handler
+        case 0xD9:
+            cycles = 4;  
+            PC = rom[SP++] + (rom[SP++] << 8);
+            IME = 1;
+            break;
+        // restarts
+        case 0b11000111:    // rst 0x0
+            restart(0x00);
+            break;
+        case 0b11001111:    // rst 0x08
+            restart(0x08);
+            break;
+        case 0b11010111:    // rst 0x10
+            restart(0x10);
+            break;
+        case 0b11011111:    // rst 0x18
+            restart(0x18);
+            break;
+        case 0b11100111:    // rst 0x20
+            restart(0x20);
+            break;
+        case 0b11101111:    // rst 0x28
+            restart(0x28);
+            break;
+        case 0b11110111:    // rst 0x30
+            restart(0x30);
+            break;
+        case 0b11111111:    // rst 0x38
+            restart(0x38);
+            break;
+        // disable/enable interrupts
+        case 0xF3:
+            IME = 0;
+            PC += 1;
+            cycles = 1;
+            break;
+        case 0xFB:
+            IME_next = 1;
+            PC += 1;
+            cycles = 1;
             break;
         default:
             std::cerr << "meow?" << std::endl;exit(-1);

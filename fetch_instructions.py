@@ -1,6 +1,6 @@
 if __name__ == "__main__":
     instruction_set = set()
-    f = open("pokemon.hex", "r")
+    f = open("red.hex", "r")
     for line in f:
         arr = line.split(":")
         if not (arr[0] in instruction_set):

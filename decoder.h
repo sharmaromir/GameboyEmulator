@@ -7,7 +7,7 @@
 #include "globals.h"
 
 struct Inst {
-    
+    WORD opcode;
 };
 
 class Decoder {

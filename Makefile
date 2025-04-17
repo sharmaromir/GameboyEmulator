@@ -24,7 +24,7 @@ ROMS := $(wildcard *.gb)
 .PHONY: $(ROMS)
 $(ROMS): %: $(EMULATOR)
 	@echo "Running $(EMULATOR) on ROM: $@"
-	@./$(EMULATOR) $@
+	@/usr/bin/time -f "Elapsed time: %E" ./$(EMULATOR) $@
 
 # Clean up build artifacts
 clean:

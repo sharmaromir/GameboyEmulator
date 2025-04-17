@@ -1,8 +1,12 @@
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 #include "cpu.h"
 
 #define MAX_ROM_SIZE 0x200000
+#define CYCLES_PER_FRAME 69905
+#define FPS 60
 
 int main(int argc, char** argv) {
     if (argc != 2) {
@@ -21,15 +25,23 @@ int main(int argc, char** argv) {
     CPU cpu(rom);
 
     printf("starting\n");
-    /**
-     * TODO: change while loop into clock cycling
-     */
-    int cycles = 0;
-    while(cycles < 100) {
-        // printf("PC: %04X\n", rom[PC]);
-        std::cerr << "cycle " << cycles << std::endl;
-        cycles += cpu.exec();
-        // printf("in loop\n");
+
+    uint32_t temp_clock_cap = 10;
+
+    uint32_t curr_cycles = 0;
+    std::chrono::milliseconds frame_dur(1000 / FPS);
+    while(temp_clock_cap-- > 0) {
+        auto frameStart = std::chrono::steady_clock::now();
+        while(curr_cycles < CYCLES_PER_FRAME) {
+            curr_cycles += cpu.exec();
+        }
+        curr_cycles = 0;
+
+        auto frameEnd = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart);
+        if (elapsed < frame_dur) {
+            std::this_thread::sleep_for(frame_dur - elapsed);
+        }
     }
 
     return 0;

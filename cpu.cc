@@ -6,6 +6,39 @@
 #include "cpu.h"
 
 CPU::CPU(BYTE* rom) : pc(PC_START), rom(rom), af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), cycles(0) {
+    // initialize rom values
+    rom[0xFF05] = 0x00;
+    rom[0xFF06] = 0x00;
+    rom[0xFF07] = 0x00;
+    rom[0xFF10] = 0x80;
+    rom[0xFF11] = 0xBF;
+    rom[0xFF12] = 0xF3;
+    rom[0xFF14] = 0xBF;
+    rom[0xFF16] = 0x3F;
+    rom[0xFF17] = 0x00;
+    rom[0xFF19] = 0xBF;
+    rom[0xFF1A] = 0x7F;
+    rom[0xFF1B] = 0xFF;
+    rom[0xFF1C] = 0x9F;
+    rom[0xFF1E] = 0xBF;
+    rom[0xFF20] = 0xFF;
+    rom[0xFF21] = 0x00;
+    rom[0xFF22] = 0x00;
+    rom[0xFF23] = 0xBF;
+    rom[0xFF24] = 0x77;
+    rom[0xFF25] = 0xF3;
+    rom[0xFF26] = 0xF1;
+    rom[0xFF40] = 0x91;
+    rom[0xFF42] = 0x00;
+    rom[0xFF43] = 0x00;
+    rom[0xFF45] = 0x00;
+    rom[0xFF47] = 0xFC;
+    rom[0xFF48] = 0xFF;
+    rom[0xFF49] = 0xFF;
+    rom[0xFF4A] = 0x00;
+    rom[0xFF4B] = 0x00;
+    rom[0xFFFF] = 0x00;
+
     r8 = {
         [this]() -> BYTE& { return B; },
         [this]() -> BYTE& { return C; },
@@ -327,12 +360,10 @@ inline void CPU::restart(BYTE n) {
 uint32_t CPU::exec() {
     BYTE opc = rom[PC];
 
-    printf("THE OPC: %X ", opc);
+    // printf("%X: %X\n", PC, opc);
     switch(opc) {
         // nop
         case 0x00:
-            // d_missing(opc);
-            printf("NOP\n");
             cycles = 1;
             PC += 1;
             break;

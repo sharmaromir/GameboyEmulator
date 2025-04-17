@@ -266,11 +266,12 @@ inline void CPU::swap(BYTE r) {
 
 inline bool CPU::test_flag(int flag) {
     return ((F & (1 << flag))) ? true : false;
+    // ZNHC0000
 }
 
 inline void CPU::jump(bool is_conditional, int flag, int condition) {
     WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
-    if (!is_conditional || test_flag(flag) == condition) {
+    if (!is_conditional || flag == condition) {
         PC = nn;
         cycles = 4;
     } else {
@@ -281,7 +282,7 @@ inline void CPU::jump(bool is_conditional, int flag, int condition) {
 
 inline void CPU::jump_relative(bool is_conditional, int flag, int condition) {
     SIGNED_BYTE n = rom[PC + 1];
-    if (!is_conditional || test_flag(flag) == condition) {
+    if (!is_conditional || flag == condition) {
         PC += n;
         cycles = 3;
     } else {
@@ -292,10 +293,9 @@ inline void CPU::jump_relative(bool is_conditional, int flag, int condition) {
 
 inline void CPU::call(bool is_conditional, int flag, int condition) {
     WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
-    if (!is_conditional || test_flag(flag) == condition) {
-        // uhh not sure if i pushed pc to the stack correctly someone check
-        rom[--SP] = (r16stk[PC]()).high;
-        rom[--SP] = (r16stk[PC]()).low;
+    if (!is_conditional || flag == condition) {
+        rom[--SP] = pchigh;
+        rom[--SP] = pclow;
         PC = nn;
         cycles = 6;
     } else {
@@ -304,8 +304,24 @@ inline void CPU::call(bool is_conditional, int flag, int condition) {
     }
 }
 
-inline void CPU::ret(bool is_conditional, int flag, int condition) {
-    
+static void ret(bool is_conditional, int flag, int condition) {
+    if (!is_conditional) {
+        cycles = 4;
+        PC = rom[SP++] + (rom[SP++] << 8);
+    } else if (flag == condition) {
+        cycles = 5;
+        PC = rom[SP++] + (rom[SP++] << 8);
+    } else {
+        cycles = 2;
+        PC += 1;
+    }
+}
+
+static void restart(BYTE n) {
+    cycles = 4;
+    rom[--SP] = pchigh;
+    rom[--SP] = pclow;
+    PC = n;
 }
 
 uint32_t CPU::exec() {
@@ -317,6 +333,7 @@ uint32_t CPU::exec() {
         case 0x00:
             // d_missing(opc);
             printf("NOP\n");
+            cycles = 1;
             PC += 1;
             break;
         case 0b01000000:
@@ -1352,10 +1369,10 @@ uint32_t CPU::exec() {
             jump(true, Z, true);
             break;
         case 0b11010010:    // cc = 10, NC
-            jump(true, C, false);
+            jump(true, Carry, false);
             break;
         case 0b11011010:    // cc = 11, C
-            jump(true, C, true);
+            jump(true, Carry, true);
             break;
         // jumps to relative address
         case 0x18:  // unconditional
@@ -1368,10 +1385,10 @@ uint32_t CPU::exec() {
             jump_relative(true, Z, true);
             break;
         case 0b00110000:    // cc = 10, NC
-            jump_relative(true, C, false);
+            jump_relative(true, Carry, false);
             break;
         case 0b00111000:    // cc = 11, C
-            jump_relative(true, C, true);
+            jump_relative(true, Carry, true);
             break;
         // calls
         case 0xCD:  // unconditional
@@ -1384,10 +1401,68 @@ uint32_t CPU::exec() {
             call(true, Z, true);
             break;
         case 0b11010100:    // cc = 10, NC
-            call(true, C, false);
+            call(true, Carry, false);
             break;
         case 0b11011100:    // cc = 11, C
-            call(true, C, true);
+            call(true, Carry, true);
+            break;
+        // returns
+        case 0xC9: // unconditional
+            ret(false, 0, false);
+            break;
+        case 0b11000000:    // cc = 00, NZ
+            ret(true, Z, false);
+            break;
+        case 0b11001000:    // cc = 01, Z
+            ret(true, Z, true);
+            break;
+        case 0b11010000:    // cc = 10, NC
+            ret(true, Carry, false);
+            break;
+        case 0b11011000:    // cc = 11, C
+            ret(true, Carry, true);
+            break;
+        // return from interrupt handler
+        case 0xD9:
+            cycles = 4;  
+            PC = rom[SP++] + (rom[SP++] << 8);
+            IME = 1;
+            break;
+        // restarts
+        case 0b11000111:    // rst 0x0
+            restart(0x00);
+            break;
+        case 0b11001111:    // rst 0x08
+            restart(0x08);
+            break;
+        case 0b11010111:    // rst 0x10
+            restart(0x10);
+            break;
+        case 0b11011111:    // rst 0x18
+            restart(0x18);
+            break;
+        case 0b11100111:    // rst 0x20
+            restart(0x20);
+            break;
+        case 0b11101111:    // rst 0x28
+            restart(0x28);
+            break;
+        case 0b11110111:    // rst 0x30
+            restart(0x30);
+            break;
+        case 0b11111111:    // rst 0x38
+            restart(0x38);
+            break;
+        // disable/enable interrupts
+        case 0xF3:
+            IME = 0;
+            PC += 1;
+            cycles = 1;
+            break;
+        case 0xFB:
+            IME_next = 1;
+            PC += 1;
+            cycles = 1;
             break;
         default:
             std::cerr << "meow?" << std::endl;exit(-1);

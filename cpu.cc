@@ -299,11 +299,12 @@ static void swap(BYTE r){
 
 static bool test_flag(int flag) {
     return ((F & (1 << flag))) ? true : false;
+    // ZNHC0000
 }
 
 static void jump(bool is_conditional, int flag, int condition) {
     WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
-    if (!is_conditional || test_flag(flag) == condition) {
+    if (!is_conditional || flag == condition) {
         PC = nn;
         cycles = 4;
     } else {
@@ -314,7 +315,7 @@ static void jump(bool is_conditional, int flag, int condition) {
 
 static void jump_relative(bool is_conditional, int flag, int condition) {
     SIGNED_BYTE n = rom[PC + 1];
-    if (!is_conditional || test_flag(flag) == condition) {
+    if (!is_conditional || flag == condition) {
         PC += n;
         cycles = 3;
     } else {
@@ -325,7 +326,7 @@ static void jump_relative(bool is_conditional, int flag, int condition) {
 
 static void call(bool is_conditional, int flag, int condition) {
     WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
-    if (!is_conditional || test_flag(flag) == condition) {
+    if (!is_conditional || flag == condition) {
         // uhh not sure if i pushed pc to the stack correctly someone check
         rom[--SP] = (r16stk[PC]()).high;
         rom[--SP] = (r16stk[PC]()).low;
@@ -338,7 +339,8 @@ static void call(bool is_conditional, int flag, int condition) {
 }
 
 static void ret(bool is_conditional, int flag, int condition) {
-    
+    // (r16stk[r]()).low = rom[SP++];
+    // (r16stk[r]()).high = rom[SP++];
 }
 
 void exec_opc(BYTE opc) {
@@ -1383,10 +1385,10 @@ void exec_opc(BYTE opc) {
             jump(true, Z, true);
             break;
         case 0b11010010:    // cc = 10, NC
-            jump(true, C, false);
+            jump(true, Carry, false);
             break;
         case 0b11011010:    // cc = 11, C
-            jump(true, C, true);
+            jump(true, Carry, true);
             break;
         // jumps to relative address
         case 0x18:  // unconditional
@@ -1399,10 +1401,10 @@ void exec_opc(BYTE opc) {
             jump_relative(true, Z, true);
             break;
         case 0b00110000:    // cc = 10, NC
-            jump_relative(true, C, false);
+            jump_relative(true, Carry, false);
             break;
         case 0b00111000:    // cc = 11, C
-            jump_relative(true, C, true);
+            jump_relative(true, Carry, true);
             break;
         // calls
         case 0xCD:  // unconditional
@@ -1415,10 +1417,10 @@ void exec_opc(BYTE opc) {
             call(true, Z, true);
             break;
         case 0b11010100:    // cc = 10, NC
-            call(true, C, false);
+            call(true, Carry, false);
             break;
         case 0b11011100:    // cc = 11, C
-            call(true, C, true);
+            call(true, Carry, true);
             break;
         default:
             std::cerr << "meow?" << std::endl;exit(-1);

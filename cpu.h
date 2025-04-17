@@ -59,6 +59,8 @@ private:
     std::vector<std::function<WORD&()>> r16;
     std::vector<std::function<Register&()>> r16stk;
     std::vector<std::function<WORD&()>> r16mem;
+    BYTE IME;   // interrupt master enable
+    BYTE IME_next;
 
     inline void ld_r_r(BYTE r1, BYTE r2);
     inline void ld_r_imm(BYTE r);
@@ -91,4 +93,5 @@ private:
     inline void jump_relative(bool is_conditional, int flag, int condition);
     inline void call(bool is_conditional, int flag, int condition);
     inline void ret(bool is_conditional, int flag, int condition);
+    inline void restart(BYTE n);
 };

@@ -304,7 +304,7 @@ inline void CPU::call(bool is_conditional, int flag, int condition) {
     }
 }
 
-static void ret(bool is_conditional, int flag, int condition) {
+inline void CPU::ret(bool is_conditional, int flag, int condition) {
     if (!is_conditional) {
         cycles = 4;
         PC = rom[SP++] + (rom[SP++] << 8);
@@ -317,7 +317,7 @@ static void ret(bool is_conditional, int flag, int condition) {
     }
 }
 
-static void restart(BYTE n) {
+inline void CPU::restart(BYTE n) {
     cycles = 4;
     rom[--SP] = pchigh;
     rom[--SP] = pclow;

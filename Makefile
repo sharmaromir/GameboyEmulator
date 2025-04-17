@@ -19,7 +19,7 @@ $(EMULATOR): $(OBJS)
 %.o: %.cc
 	$(CPP_COMPILER) $(CXXFLAGS) -c $< -o $@
 
-# Run emulator on any .gb ROM: make -s name.gb
+# Run emulator on any .gb ROM: make name.gb
 ROMS := $(wildcard *.gb)
 .PHONY: $(ROMS)
 $(ROMS): %: $(EMULATOR)

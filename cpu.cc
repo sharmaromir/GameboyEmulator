@@ -199,6 +199,104 @@ static inline void bit_xor(BYTE r){
     PC += 1;
 }
 
+static inline void inc_r16(BYTE r){
+    cycles = 2;
+    r16[r]()++;
+    PC += 1;
+}
+
+static inline void dec_r16(BYTE r){
+    cycles = 2;
+    r16[r]()--;
+    PC += 1;
+}
+
+static inline void add_r16(BYTE r){
+    cycles = 2;
+    HL += r16[r]();
+    F &= 0x8F; // clear flags except zero
+    if(H & 0b10000000) {
+        F |= 0b00010000; // set carry flag
+    }
+    if(H & 0b00001000){
+        F |= 0b00100000; // set half carry flag
+    }
+    PC += 1;
+}
+
+static inline void rotate_left_circular(BYTE r){
+    cycles = 2 + 2*(r==6);
+    F &= 0x0F; // clear flags
+    F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
+    r8[r]() = (r8[r]() << 1) | (r8[r]() >> 7);
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
+static inline void rotate_right_circular(BYTE r){
+    cycles = 2 + 2*(r==6);
+    F &= 0x0F; // clear flags
+    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
+    r8[r]() = (r8[r]() >> 1) | (r8[r]() << 7);
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
+static inline void rotate_left(BYTE r){
+    cycles = 2 + 2*(r==6);
+    BYTE carry = C;
+    F &= 0x0F; // clear flags
+    F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
+    r8[r]() = (r8[r]() << 1) | (carry);
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
+static inline void rotate_right(BYTE r){
+    cycles = 2 + 2*(r==6);
+    BYTE carry = C;
+    F &= 0x0F; // clear flags
+    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
+    r8[r]() = (r8[r]() >> 1) | (carry << 7);
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
+static void sla(BYTE r){
+    cycles = 2 + 2*(r==6);
+    F &= 0x0F; // clear flags
+    F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
+    r8[r]() <<= 1;
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
+static void sra(BYTE r){
+    cycles = 2 + 2*(r==6);
+    F &= 0x0F; // clear flags
+    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
+    r8[r]() = (r8[r]() >> 1) | (r8[r]() & 0b10000000);
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
+static void srl(BYTE r){
+    cycles = 2 + 2*(r==6);
+    F &= 0x0F; // clear flags
+    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
+    r8[r]() = (r8[r]() >> 1);
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
+static void swap(BYTE r){
+    cycles = 2 + 2*(r==6);
+    F &= 0x0F; // clear flags
+    r8[r]() = ((r8[r]() & 0b00001111) << 4) | ((r8[r]() & 0b11110000) >> 4);
+    F |= (r8[r]() == 0) << 7; // set zero flag
+    PC += 1;
+}
+
 void exec_opc(BYTE opc) {
     switch(opc) {
         // nop
@@ -489,13 +587,13 @@ void exec_opc(BYTE opc) {
         case 0b00000001:
             ld_rr_nn(0);
             break;
-        case 0b00001001:
+        case 0b00010001:
             ld_rr_nn(1);
             break;
-        case 0b00010001:
+        case 0b00100001:
             ld_rr_nn(2);
             break;
-        case 0b00011001:
+        case 0b00110001:
             ld_rr_nn(3);
             break;
         // load from stack pointer (direct)
@@ -915,8 +1013,311 @@ void exec_opc(BYTE opc) {
             F |= 0b01100000; // set subtract and half carry flag
             PC += 1;
             break;
+        // inc 16 bit register
+        case 0b00000011:
+            inc_r16(0);
+            break;
+        case 0b00010011:
+            inc_r16(1);
+            break;
+        case 0b00100011:
+            inc_r16(2);
+            break;
+        case 0b00110011:
+            inc_r16(3);
+            break;
+        // dec 16 bit register
+        case 0b00001011:
+            dec_r16(0);
+            break;
+        case 0b00011011:
+            dec_r16(1);
+            break;
+        case 0b00101011:
+            dec_r16(2);
+            break;
+        case 0b00111011:
+            dec_r16(3);
+            break;
+        // add 16 bit register to hl
+        case 0b00001001:
+            add_r16(0);
+            break;
+        case 0b00011001:
+            add_r16(1);
+            break;
+        case 0b00101001:
+            add_r16(2);
+            break;
+        case 0b00111001:
+            add_r16(3);
+            break;
+        // add relative to stack pointer
+        case 0xE8:
+            cycles = 4;
+            SP += SIGNED_BYTE(rom[PC + 1]);
+            F &= 0x0F; // clear flags
+            if(SP & 0b10000000) {
+                F |= 0b00010000; // set carry flag
+            }
+            if(SP & 0b00001000){
+                F |= 0b00100000; // set half carry flag
+            }
+            PC += 2;
+            break;
+        // rotate left circular
+        case 0x07:
+            cycles = 1;
+            F &= 0x0F; // clear flags
+            F |= (A & 0b10000000) >> 3; // set carry flag
+            A = (A << 1) | (A >> 7);
+            PC += 1;
+            break;
+        // rotate right circular
+        case 0x0F:
+            cycles = 1;
+            F &= 0x0F; // clear flags
+            F |= (A & 0b00000001) << 4; // set carry flag
+            A = (A >> 1) | (A << 7);
+            PC += 1;
+            break;
+        // rotate left through carry
+        case 0x17:
+            cycles = 1;
+            BYTE carry = C;
+            F &= 0x0F; // clear flags
+            F |= (A & 0b10000000) >> 3; // set carry flag
+            A = (A << 1) | (C);
+            PC += 1;
+            break;
+        // rotate right through carry
+        case 0x1F:
+            cycles = 1;
+            BYTE carry = C;
+            F &= 0x0F; // clear flags
+            F |= (A & 0b00000001) << 4; // set carry flag
+            A = (A >> 1) | (C << 7);
+            PC += 1;
+            break;
         case 0xCB:
-            std::cerr << "cb inst" << std::endl;exit(-1);
+            PC++;
+            BYTE opcode = rom[PC]; 
+            switch(opcode){
+                case 0b00000000:
+                    rotate_left_circular(0);
+                    break;
+                case 0b00000001:
+                    rotate_left_circular(1);
+                    break;
+                case 0b00000010:
+                    rotate_left_circular(2);
+                    break;
+                case 0b00000011:
+                    rotate_left_circular(3);
+                    break;
+                case 0b00000100:
+                    rotate_left_circular(4);
+                    break;
+                case 0b00000101:
+                    rotate_left_circular(5);
+                    break;
+                case 0b00000110:
+                    rotate_left_circular(6);
+                    break;
+                case 0b00000111:
+                    rotate_left_circular(7);
+                    break;
+                case 0b00001000:
+                    rotate_right_circular(0);
+                    break;
+                case 0b00001001:
+                    rotate_right_circular(1);
+                    break;
+                case 0b00001010:
+                    rotate_right_circular(2);
+                    break;
+                case 0b00001011:
+                    rotate_right_circular(3);
+                    break;
+                case 0b00001100:
+                    rotate_right_circular(4);
+                    break;
+                case 0b00001101:
+                    rotate_right_circular(5);
+                    break;
+                case 0b00001110:
+                    rotate_right_circular(6);
+                    break;
+                case 0b00001111:
+                    rotate_right_circular(7);
+                    break;
+                case 0b00010000:
+                    rotate_left(0);
+                    break;
+                case 0b00010001:
+                    rotate_left(1);
+                    break;
+                case 0b00010010:
+                    rotate_left(2);
+                    break;
+                case 0b00010011:    
+                    rotate_left(3);
+                    break;
+                case 0b00010100:
+                    rotate_left(4);
+                    break;
+                case 0b00010101:
+                    rotate_left(5);
+                    break;
+                case 0b00010110:
+                    rotate_left(6);
+                    break;
+                case 0b00010111:
+                    rotate_left(7);
+                    break;
+                case 0b00011000:
+                    rotate_right(0);
+                    break;
+                case 0b00011001:
+                    rotate_right(1);
+                    break;
+                case 0b00011010:
+                    rotate_right(2);
+                    break;
+                case 0b00011011:
+                    rotate_right(3);
+                    break;
+                case 0b00011100:
+                    rotate_right(4);
+                    break;
+                case 0b00011101:
+                    rotate_right(5);
+                    break;
+                case 0b00011110:
+                    rotate_right(6);
+                    break;
+                case 0b00011111:
+                    rotate_right(7);
+                    break;
+                case 0b00100000:
+                    sla(0);
+                    break;
+                case 0b00100001:
+                    sla(1);
+                    break;
+                case 0b00100010:
+                    sla(2);
+                    break;
+                case 0b00100011:
+                    sla(3);
+                    break;
+                case 0b00100100:
+                    sla(4);
+                    break;
+                case 0b00100101:
+                    sla(5);
+                    break;
+                case 0b00100110:
+                    sla(6);
+                    break;
+                case 0b00100111:
+                    sla(7);
+                    break;
+                case 0b00101000:
+                    sra(0);
+                    break;
+                case 0b00101001:
+                    sra(1);
+                    break;
+                case 0b00101010:
+                    sra(2);
+                    break;
+                case 0b00101011:
+                    sra(3);
+                    break;
+                case 0b00101100:
+                    sra(4);
+                    break;
+                case 0b00101101:
+                    sra(5);
+                    break;
+                case 0b00101110:
+                    sra(6);
+                    break;
+                case 0b00101111:
+                    sra(7);
+                    break;
+                // swapping nibbles
+                case 0b00110000:
+                    swap(0);
+                    break;
+                case 0b00110001:
+                    swap(1);
+                    break;
+                case 0b00110010:
+                    swap(2);
+                    break;
+                case 0b00110011:
+                    swap(3);
+                    break;
+                case 0b00110100:
+                    swap(4);
+                    break;
+                case 0b00110101:
+                    swap(5);
+                    break;
+                case 0b00110110:
+                    swap(6);
+                    break;
+                case 0b00110111:
+                    swap(7);
+                    break;
+                // shift right logical
+                case 0b00111000:
+                    srl(0);
+                    break;
+                case 0b00111001:
+                    srl(1);
+                    break;
+                case 0b00111010:
+                    srl(2);
+                    break;
+                case 0b00111011:
+                    srl(3);
+                    break;
+                case 0b00111100:
+                    srl(4);
+                    break;
+                case 0b00111101:
+                    srl(5);
+                    break;
+                case 0b00111110:
+                    srl(6);
+                    break;
+                case 0b00111111:
+                    srl(7);
+                    break;
+                default:
+                    switch(opcode>>6){
+                        case 0b00:
+                            std::cerr << "cb meow?" << std::endl;exit(-1);
+                        case 0b01: // test bit
+                            cycles = 2 + (opcode&0b00000111==6);
+                            F &= 0x1F;
+                            F |= 0b00100000; // set half carry flag
+                            if(((r8[opcode & 0b00000111]())>>((opcode>>3)&7))&1 == 0) F |= 0b10000000; // set zero flag
+                            break;
+                        case 0b10: // reset bit
+                            cycles = 2 + (opcode&0b00000111==6);
+                            r8[opcode & 0b00000111]() &= ~(1 << ((opcode>>3)&7));
+                            break;
+                        case 0b11: // set bit
+                            cycles = 2 + (opcode&0b00000111==6);
+                            r8[opcode & 0b00000111]() |= (1 << ((opcode>>3)&7));
+                            break;  
+                    }
+            }
+            break;
         default:
             std::cerr << "meow?" << std::endl;exit(-1);
             break;

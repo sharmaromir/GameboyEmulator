@@ -19,8 +19,8 @@ BYTE cycles;
 Register af, bc, de, hl, sp, pc;
 #define Z (af.low>>7)&1
 #define N (af.low>>6)&1
-#define H (af.low>>5)&1
-#define C (af.low>>4)&1
+#define Half (af.low>>5)&1
+#define Carry (af.low>>4)&1
 #define A af.high
 #define F af.low
 #define B bc.high
@@ -215,10 +215,10 @@ static inline void add_r16(BYTE r){
     cycles = 2;
     HL += r16[r]();
     F &= 0x8F; // clear flags except zero
-    if(H & 0b10000000) {
+    if(Half & 0b10000000) {
         F |= 0b00010000; // set carry flag
     }
-    if(H & 0b00001000){
+    if(Half & 0b00001000){
         F |= 0b00100000; // set half carry flag
     }
     PC += 1;
@@ -244,7 +244,7 @@ static inline void rotate_right_circular(BYTE r){
 
 static inline void rotate_left(BYTE r){
     cycles = 2 + 2*(r==6);
-    BYTE carry = C;
+    BYTE carry = Carry;
     F &= 0x0F; // clear flags
     F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
     r8[r]() = (r8[r]() << 1) | (carry);
@@ -254,7 +254,7 @@ static inline void rotate_left(BYTE r){
 
 static inline void rotate_right(BYTE r){
     cycles = 2 + 2*(r==6);
-    BYTE carry = C;
+    BYTE carry = Carry;
     F &= 0x0F; // clear flags
     F |= (r8[r]() & 0b00000001) << 4; // set carry flag
     r8[r]() = (r8[r]() >> 1) | (carry << 7);
@@ -298,17 +298,19 @@ static void swap(BYTE r){
 }
 
 void exec_opc(BYTE opc) {
+    printf("THE OPC: %X ", opc);
     switch(opc) {
         // nop
         case 0x00:
-            d_missing(opc);
+            // d_missing(opc);
+            printf("NOP\n");
             PC += 1;
             break;
         case 0b01000000:
             ld_r_r(0,0);
             break;
         case 0b01000001:
-            ld_r_r(0,1);            
+            ld_r_r(0,1);  
             break;
         case 0b01000010:
             ld_r_r(0,2);            
@@ -986,13 +988,13 @@ void exec_opc(BYTE opc) {
             PC += 1;
             break;
         // decimal adjustment  MAYBE WRONG*****
-        case 0x27:
+        case 0x27:{
             cycles = 1;
             BYTE offset = 0;
-            if((N && (A & 0x0F) > 9) || H) {
+            if((N && (A & 0x0F) > 9) || Half) {
                 offset |= 0x06;
             }
-            if((N && (A & 0xF0) > 0x90) || C) {
+            if((N && (A & 0xF0) > 0x90) || Carry) {
                 offset |= 0x60;
             }
             if(N) {
@@ -1005,6 +1007,7 @@ void exec_opc(BYTE opc) {
             if(offset >= 0x60) F |= 0b00010000; // set carry flag
             PC += 1;
             break;
+        }
         // complement accumulator
         case 0x2F:
             cycles = 1;
@@ -1082,24 +1085,26 @@ void exec_opc(BYTE opc) {
             PC += 1;
             break;
         // rotate left through carry
-        case 0x17:
+        case 0x17:{
             cycles = 1;
-            BYTE carry = C;
+            BYTE carry = Carry;
             F &= 0x0F; // clear flags
             F |= (A & 0b10000000) >> 3; // set carry flag
             A = (A << 1) | (C);
             PC += 1;
             break;
+        }
         // rotate right through carry
-        case 0x1F:
+        case 0x1F:{
             cycles = 1;
-            BYTE carry = C;
+            BYTE carry = Carry;
             F &= 0x0F; // clear flags
             F |= (A & 0b00000001) << 4; // set carry flag
             A = (A >> 1) | (C << 7);
             PC += 1;
             break;
-        case 0xCB:
+        }
+        case 0xCB:{
             PC++;
             BYTE opcode = rom[PC]; 
             switch(opcode){
@@ -1318,6 +1323,7 @@ void exec_opc(BYTE opc) {
                     }
             }
             break;
+        }
         default:
             std::cerr << "meow?" << std::endl;exit(-1);
             break;
@@ -1329,6 +1335,7 @@ int main(int argc, char** argv) {
         printf("usage: %s <Game Boy executable file name>\n", argv[0]);
         exit(-1);
     }
+    printf("loading rom\n");
 
     FILE* fin;
     fin = fopen(argv[1], "rb");
@@ -1337,13 +1344,16 @@ int main(int argc, char** argv) {
 
     PC = PC_START;
 
+    printf("starting\n");
     /**
      * TODO: change while loop into clock cycling
      */
     int cycles = 0;
     while(cycles < 10) {
+        printf("PC: %04X\n", rom[PC]);
         exec_opc(rom[PC]);
         cycles++;
+        printf("in loop\n");
     }
 
     return 0;

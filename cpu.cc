@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <functional>
 #include <memory>
 
 #include "debug.h"
@@ -14,23 +15,911 @@ typedef unsigned short WORD;
 typedef signed short SIGNED_WORD;
 
 BYTE rom[MAX_ROM_SIZE];
-uint16_t pc;
+BYTE cycles;
+Register af, bc, de, hl, sp, pc;
+#define Z (af.low>>7)&1
+#define N (af.low>>6)&1
+#define H (af.low>>5)&1
+#define C (af.low>>4)&1
+#define A af.high
+#define F af.low
+#define B bc.high
+#define C bc.low
+#define D de.high
+#define E de.low
+#define H hl.high
+#define L hl.low
+#define AF af.word
+#define BC bc.word
+#define DE de.word
+#define HL hl.word
+#define SP sp.word
+#define PC pc.word
+#define splow sp.low
+#define sphigh sp.high
+#define pclow pc.low
+#define pchigh pc.high
 
-uint16_t exec_opc(BYTE opc) {
+std::vector<std::function<BYTE&()>> r8 = {
+    []() -> BYTE& { return B; },
+    []() -> BYTE& { return C; },
+    []() -> BYTE& { return D; },
+    []() -> BYTE& { return E; },
+    []() -> BYTE& { return H; },
+    []() -> BYTE& { return L; },
+    []() -> BYTE& { return rom[HL]; },  // dynamically resolved
+    []() -> BYTE& { return A; }
+};
+
+std::vector<std::function<WORD&()>> r16 = {
+    []() -> WORD& { return BC; },
+    []() -> WORD& { return DE; },
+    []() -> WORD& { return HL; },
+    []() -> WORD& { return SP; }
+};
+
+std::vector<std::function<Register&()>> r16stk = {
+    []() -> Register& { return bc; },
+    []() -> Register& { return de; },
+    []() -> Register& { return hl; },
+    []() -> Register& { return af; }
+};
+
+std::vector<std::function<WORD&()>> r16mem = {
+    []() -> WORD& { return BC; },
+    []() -> WORD& { return DE; },
+    []() -> WORD& { return HL; }, // increment
+    []() -> WORD& { return HL; } // decrement
+};
+
+static inline void ld_r_r(BYTE r1, BYTE r2) {
+    cycles = 1 + (r2 == 6 || r1 == 6);
+    r8[r1]() = r8[r2]();
+    PC += 1;
+}
+
+static inline void ld_r_imm(BYTE r){
+    cycles = 2 + (r == 6);
+    r8[r]() = rom[PC + 1];
+    PC += 2;
+}
+
+static inline void ld_a_r16mem(BYTE r){
+    cycles = 2;
+    A = rom[r16mem[r]()];
+    if(r == 2) {
+        HL++;
+    } else if (r == 3) {
+        HL--;
+    }
+    PC += 1;
+}
+
+static inline void ld_r16mem_a(BYTE r){
+    cycles = 2;
+    rom[r16mem[r]()] = A;
+    if(r == 2) {
+        HL++;
+    } else if (r == 3) {
+        HL--;
+    }
+    PC += 1;
+}
+
+static inline void ld_rr_nn(BYTE r) {
+    cycles = 3;
+    r16[r]() = rom[PC + 1] + (rom[PC + 2] << 8);
+    PC += 3;
+}
+
+static inline void push_rr(BYTE r){
+    cycles = 4;
+    rom[--SP] = (r16stk[r]()).high;
+    rom[--SP] = (r16stk[r]()).low;
+    PC += 1;
+}
+
+static inline void pop_rr(BYTE r){
+    cycles = 3;
+    (r16stk[r]()).low = rom[SP++];
+    (r16stk[r]()).high = rom[SP++];
+    PC += 1;
+}
+
+static inline void add_r(BYTE carry, BYTE r){
+    cycles = 1 + (r == 6);
+    A += r8[r]() + (carry ? (F&0b00010000)>>4 : 0);
+    F &= 0x0F;
+    if(A == 0) F |= 0b10000000; // set zero flag
+    if(A & 0b00001000) F |= 0b00100000; // set half carry flag
+    if(A & 0b10000000) F |= 0b00010000; // set carry flag
+    PC += 1;
+}
+
+static inline void sub_r(BYTE carry, BYTE r){
+    cycles = 1 + (r == 6);
+    A -= r8[r]() + (carry ? (F&0b00010000)>>4 : 0);
+    F &= 0x0F;
+    if(A == 0) F |= 0b10000000; // set zero flag
+    F |= 0b01000000; // set subtract flag
+    if(A & 0b00001000) F |= 0b00100000; // set half carry flag
+    if(A & 0b10000000) F |= 0b00010000; // set carry flag
+    PC += 1;
+}
+
+static inline void cp_r(BYTE r){
+    cycles = 1 + (r == 6);
+    F &= 0x0F;
+    if(A == r8[r]()) F |= 0b10000000; // set zero flag
+    if(((A - r8[r]()) & 0b00001000)) F |= 0b00100000; // set half carry flag
+    if(A < r8[r]()) F |= 0b00010000; // set carry flag
+    PC += 1;
+}
+
+static inline void inc_r(BYTE r){
+    cycles = 1 + (r == 6)*2;
+    r8[r]()++;
+    F &= 0x1F;
+    if(r8[r]() == 0) F |= 0b10000000; // set zero flag
+    if(r8[r]() & 0b00001000) F |= 0b00100000; // set half carry flag
+    PC += 1;
+}
+
+static inline void dec_r(BYTE r){
+    cycles = 1 + (r == 6)*2;
+    r8[r]()--;
+    F &= 0x1F;
+    if(r8[r]() == 0) F |= 0b10000000; // set zero flag
+    if(r8[r]() & 0b00001000) F |= 0b00100000; // set half carry flag
+    PC += 1;
+}
+
+static inline void bit_and(BYTE r){
+    cycles = 1 + (r == 6);
+    A &= r8[r]();
+    F &= 0x1F;
+    if(A == 0) F |= 0b10000000; // set zero flag
+    F |= 0b00100000; // set half carry flag
+    PC += 1;
+}
+
+static inline void bit_or(BYTE r){
+    cycles = 1 + (r == 6);
+    A |= r8[r]();
+    F &= 0x1F;
+    if(A == 0) F |= 0b10000000; // set zero flag
+    PC += 1;
+}
+
+static inline void bit_xor(BYTE r){
+    cycles = 1 + (r == 6);
+    A ^= r8[r]();
+    F &= 0x1F;
+    if(A == 0) F |= 0b10000000; // set zero flag
+    PC += 1;
+}
+
+void exec_opc(BYTE opc) {
     switch(opc) {
+        // nop
         case 0x00:
             d_missing(opc);
-            return pc + 1;
-        case 0x01:
-
+            PC += 1;
+            break;
+        case 0b01000000:
+            ld_r_r(0,0);
+            break;
+        case 0b01000001:
+            ld_r_r(0,1);            
+            break;
+        case 0b01000010:
+            ld_r_r(0,2);            
+            break;
+        case 0b01000011:
+            ld_r_r(0,3);            
+            break;
+        case 0b01000100:
+            ld_r_r(0,4);            
+            break;
+        case 0b01000101:
+            ld_r_r(0,5);            
+            break;
+        case 0b01000110:
+            ld_r_r(0,6);            
+            break;
+        case 0b01000111:
+            ld_r_r(0,7);            
+            break;
+        case 0b01001000:
+            ld_r_r(1,0);            
+            break;
+        case 0b01001001:
+            ld_r_r(1,1);           
+            break;
+        case 0b01001010:
+            ld_r_r(1,2);            
+            break;
+        case 0b01001011:
+            ld_r_r(1,3);
+            break;
+        case 0b01001100:
+            ld_r_r(1,4);
+            break;
+        case 0b01001101:
+            ld_r_r(1,5);
+            break;
+        case 0b01001110:
+            ld_r_r(1,6);
+            break;
+        case 0b01001111:
+            ld_r_r(1,7);
+            break;
+        case 0b01010000:
+            ld_r_r(2,0);
+            break;
+        case 0b01010001:
+            ld_r_r(2,1);
+            break;
+        case 0b01010010:
+            ld_r_r(2,2);
+            break;
+        case 0b01010011:
+            ld_r_r(2,3);
+            break;
+        case 0b01010100:
+            ld_r_r(2,4);
+            break;
+        case 0b01010101:
+            ld_r_r(2,5);
+            break;
+        case 0b01010110:
+            ld_r_r(2,6);
+            break;
+        case 0b01010111:
+            ld_r_r(2,7);
+            break;
+        case 0b01011000:
+            ld_r_r(3,0);
+            break;
+        case 0b01011001:
+            ld_r_r(3,1);
+            break;
+        case 0b01011010:
+            ld_r_r(3,2);
+            break;
+        case 0b01011011:
+            ld_r_r(3,3);
+            break;
+        case 0b01011100:
+            ld_r_r(3,4);
+            break;
+        case 0b01011101:
+            ld_r_r(3,5);
+            break;
+        case 0b01011110:
+            ld_r_r(3,6);
+            break;
+        case 0b01011111:
+            ld_r_r(3,7);
+            break;
+        case 0b01100000:
+            ld_r_r(4,0);
+            break;
+        case 0b01100001:
+            ld_r_r(4,1);
+            break;
+        case 0b01100010:
+            ld_r_r(4,2);
+            break;
+        case 0b01100011:    
+            ld_r_r(4,3);
+            break;
+        case 0b01100100:
+            ld_r_r(4,4);
+            break;
+        case 0b01100101:
+            ld_r_r(4,5);
+            break;
+        case 0b01100110:
+            ld_r_r(4,6);
+            break;
+        case 0b01100111:
+            ld_r_r(4,7);
+            break;
+        case 0b01101000:    
+            ld_r_r(5,0);
+            break;
+        case 0b01101001:
+            ld_r_r(5,1);
+            break;
+        case 0b01101010:
+            ld_r_r(5,2);
+            break;
+        case 0b01101011:    
+            ld_r_r(5,3);
+            break;
+        case 0b01101100:
+            ld_r_r(5,4);
+            break;
+        case 0b01101101:
+            ld_r_r(5,5);
+            break;
+        case 0b01101110:
+            ld_r_r(5,6);
+            break;
+        case 0b01101111:
+            ld_r_r(5,7);
+            break;
+        case 0b01110000:
+            ld_r_r(6,0);
+            break;
+        case 0b01110001:
+            ld_r_r(6,1);
+            break;
+        case 0b01110010:
+            ld_r_r(6,2);
+            break;
+        case 0b01110011:
+            ld_r_r(6,3);
+            break;
+        case 0b01110100:
+            ld_r_r(6,4);
+            break;
+        case 0b01110101:
+            ld_r_r(6,5);
+            break;
+        case 0b01110110:
+            ld_r_r(6,6);
+            break;
+        case 0b01110111:
+            ld_r_r(6,7);
+            break;
+        case 0b01111000:
+            ld_r_r(7,0);
+            break;
+        case 0b01111001:
+            ld_r_r(7,1);
+            break;
+        case 0b01111010:
+            ld_r_r(7,2);
+            break;
+        case 0b01111011:
+            ld_r_r(7,3);
+            break;
+        case 0b01111100:
+            ld_r_r(7,4);
+            break;
+        case 0b01111101:
+            ld_r_r(7,5);
+            break;
+        case 0b01111110:
+            ld_r_r(7,6);
+            break;
+        case 0b01111111:
+            ld_r_r(7,7);
+        // load register (immediate)
+            break;
+        case 0b00000110:
+            ld_r_imm(0);
+            break;
+        case 0b00001110:
+            ld_r_imm(1);
+            break;
+        case 0b00010110:
+            ld_r_imm(2);
+            break;
+        case 0b00011110:
+            ld_r_imm(3);
+            break;
+        case 0b00100110:
+            ld_r_imm(4);
+            break;
+        case 0b00101110:
+            ld_r_imm(5);
+            break;
+        case 0b00110110:
+            ld_r_imm(6);
+            break;
+        case 0b00111110:
+            ld_r_imm(7);
+            break;
+        // load accumulator (indirect register)
+        case 0b00001010:
+            ld_a_r16mem(0);
+            break;
+        case 0b00011010:
+            ld_a_r16mem(1);
+            break;
+        case 0b00101010:
+            ld_a_r16mem(2);
+            break;
+        case 0b00111010:
+            ld_a_r16mem(3);
+            break;
+        // load from accumulator (indirect register)
+        case 0b00000010:
+            ld_r16mem_a(0);
+            break;
+        case 0b00010010:
+            ld_r16mem_a(1);
+            break;
+        case 0b00100010:
+            ld_r16mem_a(2);
+            break;
+        case 0b00110010:
+            ld_r16mem_a(3);
+            break;
+        // load accumulator direct
+        case 0xFA:
+            cycles = 4;
+            A = rom[rom[PC + 1] + (rom[PC + 2] << 8)];
+            PC += 3;
+            break;
+        // load from accumulator direct
+        case 0xEA:
+            cycles = 4;
+            rom[rom[PC + 1] + (rom[PC + 2] << 8)] = A;
+            PC += 3;
+            break;
+        // load accumulator indirect c
+        case 0xF2:
+            cycles = 2;
+            A = rom[0xFF00 + C];
+            PC += 1;
+            break;
+        // load from accumulator indirect c
+        case 0xE2:
+            cycles = 2;
+            rom[0xFF00 + C] = A;
+            PC += 1;
+            break;
+        // load accumulator direct 
+        case 0xF0:
+            cycles = 3;
+            A = rom[0xFF00 + rom[PC + 1]];
+            PC += 2;
+            break;
+        // load from accumulator direct
+        case 0xE0:
+            cycles = 3;
+            rom[0xFF00 + rom[PC + 1]] = A;
+            PC += 2;
+            break;
+        // load 16 bit register
+        case 0b00000001:
+            ld_rr_nn(0);
+            break;
+        case 0b00001001:
+            ld_rr_nn(1);
+            break;
+        case 0b00010001:
+            ld_rr_nn(2);
+            break;
+        case 0b00011001:
+            ld_rr_nn(3);
+            break;
+        // load from stack pointer (direct)
+        case 0x08:
+            cycles = 5;
+            rom[rom[PC + 1] + (rom[PC + 2] << 8)] = SP;
+            PC += 3;
+            break;
+        // load stack pointer from hl
+        case 0xF9:
+            cycles = 2;
+            SP = HL;
+            PC += 1;
+            break;
+        // push register to stack
+        case 0b11'00'0101:
+            push_rr(0);
+            break;
+        case 0b11'01'0101:
+            push_rr(1);
+            break;
+        case 0b11'10'0101:
+            push_rr(2);
+            break;
+        case 0b11'11'0101:
+            push_rr(3);
+            break;
+        // pop register from stack
+        case 0b11'00'0001:
+            pop_rr(0);
+            break;
+        case 0b11'01'0001:
+            pop_rr(1);
+            break;
+        case 0b11'10'0001:
+            pop_rr(2);
+            break;
+        case 0b11'11'0001:
+            pop_rr(3);
+            break;
+        // load hl from adjusted sp
+        case 0xF8:
+            cycles = 3;
+            HL = SP + SIGNED_BYTE(rom[PC + 1]);
+            F &= 0x0F; // clear flags
+            if(HL & 0b10000000) {
+                F |= 0b00010000; // set carry flag
+            }
+            if(HL & 0b00001000){
+                F |= 0b00100000; // set half carry flag
+            }
+            PC += 2;
+            break;
+        // add register to accumulator
+        case 0b10000000:
+            add_r(0, 0);
+            break;
+        case 0b10000001:
+            add_r(0, 1);
+            break;
+        case 0b10000010:
+            add_r(0, 2);
+            break;
+        case 0b10000011:
+            add_r(0, 3);
+            break;
+        case 0b10000100:
+            add_r(0, 4);
+            break;
+        case 0b10000101:
+            add_r(0, 5);
+            break;
+        case 0b10000110:
+            add_r(0, 6);
+            break;
+        case 0b10000111:
+            add_r(0, 7);
+            break;
+        // add immediate to accumulator
+        case 0xC6:
+            cycles = 2;
+            A += rom[PC + 1];
+            F &= 0x0F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            if(A & 0b00001000) F |= 0b00100000; // set half carry flag
+            if(A & 0b10000000) F |= 0b00010000; // set carry flag
+            PC += 2;
+            break;
+        // add with carry
+        case 0b10001000:
+            add_r(1, 0);
+            break;
+        case 0b10001001:
+            add_r(1, 1);
+            break;
+        case 0b10001010:
+            add_r(1, 2);
+            break;
+        case 0b10001011:
+            add_r(1, 3);
+            break;
+        case 0b10001100:
+            add_r(1, 4);
+            break;
+        case 0b10001101:
+            add_r(1, 5);
+            break;
+        case 0b10001110:
+            add_r(1, 6);
+            break;
+        case 0b10001111:
+            add_r(1, 7);
+            break;
+        // add immediate with carry
+        case 0xCE:
+            cycles = 2;
+            A += rom[PC + 1] + ((F & 0b00010000) >> 4);
+            F &= 0x0F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            if(A & 0b00001000) F |= 0b00100000; // set half carry flag
+            if(A & 0b10000000) F |= 0b00010000; // set carry flag
+            PC += 2;
+            break;
+        // subtract register from accumulator
+        case 0b10010000:
+            sub_r(0, 0);
+            break;
+        case 0b10010001:
+            sub_r(0, 1);
+            break;
+        case 0b10010010:
+            sub_r(0, 2);
+            break;
+        case 0b10010011:
+            sub_r(0, 3);
+            break;
+        case 0b10010100:
+            sub_r(0, 4);
+            break;
+        case 0b10010101:
+            sub_r(0, 5);
+            break;
+        case 0b10010110:
+            sub_r(0, 6);
+            break;
+        case 0b10010111:
+            sub_r(0, 7);
+            break;
+        // subtract immediate from accumulator
+        case 0xD6:
+            cycles = 2;
+            A -= rom[PC + 1];
+            F &= 0x0F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            if(A & 0b00001000) F |= 0b00100000; // set half carry flag
+            if(A & 0b10000000) F |= 0b00010000; // set carry flag
+            PC += 2;
+            break;
+        // subtract with carry
+        case 0b10011000:
+            sub_r(1, 0);
+            break;
+        case 0b10011001:
+            sub_r(1, 1);
+            break;
+        case 0b10011010:
+            sub_r(1, 2);
+            break;
+        case 0b10011011:    
+            sub_r(1, 3);
+            break;
+        case 0b10011100:
+            sub_r(1, 4);
+            break;
+        case 0b10011101:
+            sub_r(1, 5);
+            break;
+        case 0b10011110:
+            sub_r(1, 6);
+            break;
+        case 0b10011111:
+            sub_r(1, 7);
+            break;
+        // subtract immediate with carry
+        case 0xDE:
+            cycles = 2;
+            A -= rom[PC + 1] + ((F & 0b00010000) >> 4);
+            F &= 0x0F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            if(A & 0b00001000) F |= 0b00100000; // set half carry flag
+            if(A & 0b10000000) F |= 0b00010000; // set carry flag
+            PC += 2;
+            break;
+        // compare register
+        case 0b10111000:
+            cp_r(0);
+            break;
+        case 0b10111001:
+            cp_r(1);
+            break;
+        case 0b10111010:
+            cp_r(2);
+            break;
+        case 0b10111011:
+            cp_r(3);
+            break;
+        case 0b10111100:
+            cp_r(4);
+            break;
+        case 0b10111101:
+            cp_r(5);
+            break;
+        case 0b10111110:
+            cp_r(6);
+            break;
+        case 0b10111111:
+            cp_r(7);
+            break;
+        // compare immediate
+        case 0xFE:
+            cycles = 2;
+            F &= 0x0F;
+            if(A == rom[PC + 1]) F |= 0b10000000; // set zero flag
+            if(((A - rom[PC + 1]) & 0b00001000)) F |= 0b00100000; // set half carry flag
+            if(A < rom[PC + 1]) F |= 0b00010000; // set carry flag
+            PC += 2;
+            break;
+        // increment register
+        case 0b00000100:
+            inc_r(0);
+            break;
+        case 0b00001100:
+            inc_r(1);
+            break;
+        case 0b00010100:
+            inc_r(2);
+            break;
+        case 0b00011100:
+            inc_r(3);
+            break;
+        case 0b00100100:
+            inc_r(4);
+            break;
+        case 0b00101100:
+            inc_r(5);
+            break;
+        case 0b00110100:
+            inc_r(6);
+            break;
+        case 0b00111100:
+            inc_r(7);
+            break;
+        // decrement register
+        case 0b00000101:
+            dec_r(0);
+            break;
+        case 0b00001101:
+            dec_r(1);
+            break;
+        case 0b00010101:
+            dec_r(2);
+            break;
+        case 0b00011101:
+            dec_r(3);
+            break;
+        case 0b00100101:
+            dec_r(4);
+            break;
+        case 0b00101101:
+            dec_r(5);
+            break;
+        case 0b00110101:
+            dec_r(6);
+            break;
+        case 0b00111101:
+            dec_r(7);
+            break;
+        // bitwise and register
+        case 0b10100000:
+            bit_and(0);
+            break;
+        case 0b10100001:
+            bit_and(1);
+            break;
+        case 0b10100010:
+            bit_and(2);
+            break;
+        case 0b10100011:
+            bit_and(3);
+            break;
+        case 0b10100100:
+            bit_and(4);
+            break;
+        case 0b10100101:
+            bit_and(5);
+            break;
+        case 0b10100110:
+            bit_and(6);
+            break;
+        case 0b10100111:
+            bit_and(7);
+            break;
+        // bitwise and immediate
+        case 0xE6:
+            cycles = 2;
+            A &= rom[PC + 1];
+            F &= 0x0F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            F |= 0b00100000; // set half carry flag
+            PC += 2;
+            break;
+        // bitwise or register
+        case 0b10110000:
+            bit_or(0);
+            break;
+        case 0b10110001:
+            bit_or(1);
+            break;
+        case 0b10110010:
+            bit_or(2);
+            break;
+        case 0b10110011:
+            bit_or(3);
+            break;
+        case 0b10110100:
+            bit_or(4);
+            break;
+        case 0b10110101:
+            bit_or(5);
+            break;
+        case 0b10110110:
+            bit_or(6);
+            break;
+        case 0b10110111:
+            bit_or(7);
+            break;
+        // bitwise or immediate
+        case 0xF6:
+            cycles = 2;
+            A |= rom[PC + 1];
+            F &= 0x0F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            PC += 2;
+            break;
+        // bitwise xor register
+        case 0b10101000:
+            bit_xor(0);
+            break;
+        case 0b10101001:
+            bit_xor(1);
+            break;
+        case 0b10101010:
+            bit_xor(2);
+            break;
+        case 0b10101011:
+            bit_xor(3);
+            break;
+        case 0b10101100:
+            bit_xor(4);
+            break;
+        case 0b10101101:
+            bit_xor(5);
+            break;
+        case 0b10101110:
+            bit_xor(6);
+            break;
+        case 0b10101111:
+            bit_xor(7);
+            break;
+        // bitwise xor immediate
+        case 0xEE:
+            cycles = 2;
+            A ^= rom[PC + 1];
+            F &= 0x0F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            PC += 2;
+            break;
+        // complement carry flag
+        case 0x3F:
+            cycles = 1;
+            F &= 0x9F;
+            F ^= 0b00010000;
+            PC += 1;
+            break;
+        // set carry flag
+        case 0x37:
+            cycles = 1;
+            F &= 0x9F;
+            F |= 0b00010000;
+            PC += 1;
+            break;
+        // decimal adjustment  MAYBE WRONG*****
+        case 0x27:
+            cycles = 1;
+            BYTE offset = 0;
+            if((N && (A & 0x0F) > 9) || H) {
+                offset |= 0x06;
+            }
+            if((N && (A & 0xF0) > 0x90) || C) {
+                offset |= 0x60;
+            }
+            if(N) {
+                A -= offset;
+            } else {
+                A += offset;
+            }
+            F &= 0x4F;
+            if(A == 0) F |= 0b10000000; // set zero flag
+            if(offset >= 0x60) F |= 0b00010000; // set carry flag
+            PC += 1;
+            break;
+        // complement accumulator
+        case 0x2F:
+            cycles = 1;
+            A = ~A;
+            F &= 0x9F;
+            F |= 0b01100000; // set subtract and half carry flag
+            PC += 1;
+            break;
         case 0xCB:
-            std::cerr << "cb inst" << std::endl;
-            exit(-1);
-            return 0;
+            std::cerr << "cb inst" << std::endl;exit(-1);
         default:
-            std::cerr << "meow?" << std::endl;
-            exit(-1);
-            return 0;
+            std::cerr << "meow?" << std::endl;exit(-1);
+            break;
     }
 }
 
@@ -45,14 +934,14 @@ int main(int argc, char** argv) {
     fread(rom, 1, MAX_ROM_SIZE, fin);
     fclose(fin);
 
-    pc = PC_START;
+    PC = PC_START;
 
     /**
      * TODO: change while loop into clock cycling
      */
     int cycles = 0;
     while(cycles < 10) {
-        pc = exec_opc(rom[pc]);
+        exec_opc(rom[PC]);
         cycles++;
     }
 

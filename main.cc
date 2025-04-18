@@ -5,7 +5,7 @@
 #include "cpu.h"
 
 #define MAX_ROM_SIZE 0x200000
-#define CYCLES_PER_FRAME 69905
+#define CYCLES_PER_FRAME 10
 #define FPS 60
 
 int main(int argc, char** argv) {

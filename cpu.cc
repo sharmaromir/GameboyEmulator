@@ -174,13 +174,13 @@ inline void CPU::ld_r_r(BYTE r1, BYTE r2) {
 
 inline void CPU::ld_r_imm(BYTE r) {
     cycles = 2 + (r == 6);
-    r8[r]() = rom[PC + 1];
+    r8[r]() = read_mem(PC + 1);
     PC += 2;
 }
 
 inline void CPU::ld_a_r16mem(BYTE r) {
     cycles = 2;
-    A = rom[r16mem[r]()];
+    A = read_mem(r16mem[r]());
     if(r == 2) {
         HL++;
     } else if (r == 3) {
@@ -191,7 +191,7 @@ inline void CPU::ld_a_r16mem(BYTE r) {
 
 inline void CPU::ld_r16mem_a(BYTE r) {
     cycles = 2;
-    rom[r16mem[r]()] = A;
+    write_mem(r16mem[r](), A);
     if(r == 2) {
         HL++;
     } else if (r == 3) {
@@ -202,27 +202,28 @@ inline void CPU::ld_r16mem_a(BYTE r) {
 
 inline void CPU::ld_rr_nn(BYTE r) {
     cycles = 3;
-    r16[r]() = rom[PC + 1] + (rom[PC + 2] << 8);
+    r16[r]() = read_mem(PC+1) + (read_mem(PC+2) << 8);
     PC += 3;
 }
 
 inline void CPU::push_rr(BYTE r) {
     cycles = 4;
-    rom[--SP] = (r16stk[r]()).high;
-    rom[--SP] = (r16stk[r]()).low;
+    write_mem(--SP, (r16stk[r]()).high);
+    write_mem(--SP, (r16stk[r]()).low);
     PC += 1;
 }
 
 inline void CPU::pop_rr(BYTE r) {
     cycles = 3;
-    (r16stk[r]()).low = rom[SP++];
-    (r16stk[r]()).high = rom[SP++];
+    (r16stk[r]()).low = read_mem(SP++);
+    (r16stk[r]()).high = read_mem(SP++);
     PC += 1;
 }
 
 inline void CPU::add_r(BYTE carry, BYTE r) {
     cycles = 1 + (r == 6);
-    A += r8[r]() + (carry ? (F&0b00010000)>>4 : 0);
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    A += value + (carry ? (F&0b00010000)>>4 : 0);
     F &= 0x0F;
     if(A == 0) F |= 0b10000000; // set zero flag
     if(A & 0b00001000) F |= 0b00100000; // set half carry flag
@@ -232,7 +233,8 @@ inline void CPU::add_r(BYTE carry, BYTE r) {
 
 inline void CPU::sub_r(BYTE carry, BYTE r) {
     cycles = 1 + (r == 6);
-    A -= r8[r]() + (carry ? (F&0b00010000)>>4 : 0);
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    A -= value + (carry ? (F&0b00010000)>>4 : 0);
     F &= 0x0F;
     if(A == 0) F |= 0b10000000; // set zero flag
     F |= 0b01000000; // set subtract flag
@@ -244,33 +246,45 @@ inline void CPU::sub_r(BYTE carry, BYTE r) {
 inline void CPU::cp_r(BYTE r) {
     cycles = 1 + (r == 6);
     F &= 0x0F;
-    if(A == r8[r]()) F |= 0b10000000; // set zero flag
-    if(((A - r8[r]()) & 0b00001000)) F |= 0b00100000; // set half carry flag
-    if(A < r8[r]()) F |= 0b00010000; // set carry flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    if(A == value) F |= 0b10000000; // set zero flag
+    if(((A - value) & 0b00001000)) F |= 0b00100000; // set half carry flag
+    if(A < value) F |= 0b00010000; // set carry flag
     PC += 1;
 }
 
 inline void CPU::inc_r(BYTE r) {
     cycles = 1 + (r == 6)*2;
-    r8[r]()++;
+    if(r == 6) {
+        write_mem(HL, read_mem(HL)+1);
+    } else {
+        r8[r]()++;
+    }
     F &= 0x1F;
-    if(r8[r]() == 0) F |= 0b10000000; // set zero flag
-    if(r8[r]() & 0b00001000) F |= 0b00100000; // set half carry flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    if(value == 0) F |= 0b10000000; // set zero flag
+    if(value & 0b00001000) F |= 0b00100000; // set half carry flag
     PC += 1;
 }
 
 inline void CPU::dec_r(BYTE r) {
     cycles = 1 + (r == 6)*2;
-    r8[r]()--;
+    if(r == 6) {
+        write_mem(HL, read_mem(HL)-1);
+    } else {
+        r8[r]()--;
+    }
     F &= 0x1F;
-    if(r8[r]() == 0) F |= 0b10000000; // set zero flag
-    if(r8[r]() & 0b00001000) F |= 0b00100000; // set half carry flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    if(value == 0) F |= 0b10000000; // set zero flag
+    if(value & 0b00001000) F |= 0b00100000; // set half carry flag
     PC += 1;
 }
 
 inline void CPU::bit_and(BYTE r) {
     cycles = 1 + (r == 6);
-    A &= r8[r]();
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    A &= value;
     F &= 0x1F;
     if(A == 0) F |= 0b10000000; // set zero flag
     F |= 0b00100000; // set half carry flag
@@ -279,7 +293,8 @@ inline void CPU::bit_and(BYTE r) {
 
 inline void CPU::bit_or(BYTE r) {
     cycles = 1 + (r == 6);
-    A |= r8[r]();
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    A |= value;
     F &= 0x1F;
     if(A == 0) F |= 0b10000000; // set zero flag
     PC += 1;
@@ -287,7 +302,8 @@ inline void CPU::bit_or(BYTE r) {
 
 inline void CPU::bit_xor(BYTE r) {
     cycles = 1 + (r == 6);
-    A ^= r8[r]();
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    A ^= value;
     F &= 0x1F;
     if(A == 0) F |= 0b10000000; // set zero flag
     PC += 1;
@@ -321,18 +337,30 @@ inline void CPU::add_r16(BYTE r) {
 inline void CPU::rotate_left_circular(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
-    F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
-    r8[r]() = (r8[r]() << 1) | (r8[r]() >> 7);
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    F |= (value & 0b10000000) >> 3; // set carry flag
+    value = (value << 1) | (value >> 7);
+    if(r==6) {
+        write_mem(HL, value);
+    } else {
+        r8[r]() = value;
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
 inline void CPU::rotate_right_circular(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
-    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
-    r8[r]() = (r8[r]() >> 1) | (r8[r]() << 7);
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    F |= (value & 0b00000001) << 4; // set carry flag
+    value = (value >> 1) | (value << 7);
+    if(r==6) {
+        write_mem(HL, value);
+    } else {
+        r8[r]() = value;
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
@@ -340,9 +368,15 @@ inline void CPU::rotate_left(BYTE r) {
     cycles = 2 + 2*(r==6);
     BYTE carry = Carry;
     F &= 0x0F; // clear flags
-    F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
-    r8[r]() = (r8[r]() << 1) | (carry);
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    F |= (value & 0b10000000) >> 3; // set carry flag
+    value = (value << 1) | (carry);
+    if(r==6) {
+        write_mem(HL, value);
+    } else {
+        r8[r]() = value;
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
@@ -350,44 +384,70 @@ inline void CPU::rotate_right(BYTE r) {
     cycles = 2 + 2*(r==6);
     BYTE carry = Carry;
     F &= 0x0F; // clear flags
-    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
-    r8[r]() = (r8[r]() >> 1) | (carry << 7);
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    F |= (value & 0b00000001) << 4; // set carry flag
+    value = (value >> 1) | (carry << 7);
+    if(r==6) {
+        write_mem(HL, value);
+    } else {
+        r8[r]() = value;
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
 inline void CPU::sla(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
-    F |= (r8[r]() & 0b10000000) >> 3; // set carry flag
-    r8[r]() <<= 1;
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    F |= (value & 0b10000000) >> 3; // set carry flag
+    if(r==6) {
+        write_mem(HL, value << 1);
+    } else {
+        r8[r]() <<= 1;
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
 inline void CPU::sra(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
-    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
-    r8[r]() = (r8[r]() >> 1) | (r8[r]() & 0b10000000);
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    F |= (value & 0b00000001) << 4; // set carry flag
+    if(r==6) {
+        write_mem(HL, (value >> 1) | (value & 0b10000000));
+    } else {
+        r8[r]() = (value >> 1) | (value & 0b10000000);
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
 inline void CPU::srl(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
-    F |= (r8[r]() & 0b00000001) << 4; // set carry flag
-    r8[r]() = (r8[r]() >> 1);
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    F |= (value & 0b00000001) << 4; // set carry flag
+    if(r==6) {
+        write_mem(HL, (value >> 1));
+    } else {
+        r8[r]() = (value >> 1);
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
 inline void CPU::swap(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
-    r8[r]() = ((r8[r]() & 0b00001111) << 4) | ((r8[r]() & 0b11110000) >> 4);
-    F |= (r8[r]() == 0) << 7; // set zero flag
+    BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    if(r==6){
+        write_mem(HL, ((value & 0b11110000) >> 4) | ((value & 0b00001111) << 4));
+    } else {
+        r8[r]() = ((value & 0b11110000) >> 4) | ((value & 0b00001111) << 4);
+    }
+    F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
 
@@ -397,7 +457,7 @@ inline bool CPU::test_flag(int flag) {
 }
 
 inline void CPU::jump(bool is_conditional, int flag, int condition) {
-    WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
+    WORD nn = read_mem(PC + 1) + (read_mem(PC + 2) << 8);
     if (!is_conditional || flag == condition) {
         PC = nn;
         cycles = 4;
@@ -408,7 +468,7 @@ inline void CPU::jump(bool is_conditional, int flag, int condition) {
 }
 
 inline void CPU::jump_relative(bool is_conditional, int flag, int condition) {
-    SIGNED_BYTE n = rom[PC + 1];
+    SIGNED_BYTE n = read_mem(PC + 1);
     if (!is_conditional || flag == condition) {
         PC += n;
         cycles = 3;
@@ -419,10 +479,10 @@ inline void CPU::jump_relative(bool is_conditional, int flag, int condition) {
 }
 
 inline void CPU::call(bool is_conditional, int flag, int condition) {
-    WORD nn = rom[PC + 1] + (rom[PC + 2] << 8);
+    WORD nn = read_mem(PC + 1) + (read_mem(PC + 2) << 8);
     if (!is_conditional || flag == condition) {
-        rom[--SP] = pchigh;
-        rom[--SP] = pclow;
+        write_mem(--SP, pchigh);
+        write_mem(--SP, pclow);
         PC = nn;
         cycles = 6;
     } else {
@@ -434,10 +494,10 @@ inline void CPU::call(bool is_conditional, int flag, int condition) {
 inline void CPU::ret(bool is_conditional, int flag, int condition) {
     if (!is_conditional) {
         cycles = 4;
-        PC = rom[SP++] + (rom[SP++] << 8);
+        PC = read_mem(SP++) + (read_mem(SP++) << 8);
     } else if (flag == condition) {
         cycles = 5;
-        PC = rom[SP++] + (rom[SP++] << 8);
+        PC = read_mem(SP++) + (read_mem(SP++) << 8);
     } else {
         cycles = 2;
         PC += 1;
@@ -446,15 +506,16 @@ inline void CPU::ret(bool is_conditional, int flag, int condition) {
 
 inline void CPU::restart(BYTE n) {
     cycles = 4;
-    rom[--SP] = pchigh;
-    rom[--SP] = pclow;
+    write_mem(--SP, pchigh);
+    write_mem(--SP, pclow);
     PC = n;
 }
 
 uint32_t CPU::exec() {
-    BYTE opc = rom[PC];
+    BYTE opc = read_mem(PC);
 
-    // printf("%X: %X\n", PC, opc);
+    printf("%X: %X\n", PC, opc);
+    printf("%X %X\n", A, F);
     switch(opc) {
         // nop
         case 0x00:
@@ -707,37 +768,37 @@ uint32_t CPU::exec() {
         // load accumulator direct
         case 0xFA:
             cycles = 4;
-            A = rom[rom[PC + 1] + (rom[PC + 2] << 8)];
+            A = read_mem(read_mem(PC + 1) + (read_mem(PC + 2) << 8));
             PC += 3;
             break;
         // load from accumulator direct
         case 0xEA:
             cycles = 4;
-            rom[rom[PC + 1] + (rom[PC + 2] << 8)] = A;
+            write_mem(read_mem(PC + 1) + (read_mem(PC + 2) << 8), A);
             PC += 3;
             break;
         // load accumulator indirect c
         case 0xF2:
             cycles = 2;
-            A = rom[0xFF00 + C];
+            A = read_mem(0xFF00 + C);
             PC += 1;
             break;
         // load from accumulator indirect c
         case 0xE2:
             cycles = 2;
-            rom[0xFF00 + C] = A;
+            write_mem(0xFF00 + C, A);
             PC += 1;
             break;
         // load accumulator direct 
         case 0xF0:
             cycles = 3;
-            A = rom[0xFF00 + rom[PC + 1]];
+            A = read_mem(0xFF00 + read_mem(PC + 1));
             PC += 2;
             break;
         // load from accumulator direct
         case 0xE0:
             cycles = 3;
-            rom[0xFF00 + rom[PC + 1]] = A;
+            write_mem(0xFF00 + read_mem(PC + 1), A);
             PC += 2;
             break;
         // load 16 bit register
@@ -756,7 +817,7 @@ uint32_t CPU::exec() {
         // load from stack pointer (direct)
         case 0x08:
             cycles = 5;
-            rom[rom[PC + 1] + (rom[PC + 2] << 8)] = SP;
+            write_mem(read_mem(PC + 1) + (read_mem(PC + 2) << 8), SP);
             PC += 3;
             break;
         // load stack pointer from hl
@@ -794,7 +855,7 @@ uint32_t CPU::exec() {
         // load hl from adjusted sp
         case 0xF8:
             cycles = 3;
-            HL = SP + SIGNED_BYTE(rom[PC + 1]);
+            HL = SP + SIGNED_BYTE(read_mem(PC + 1));
             F &= 0x0F; // clear flags
             if(HL & 0b10000000) {
                 F |= 0b00010000; // set carry flag
@@ -832,7 +893,7 @@ uint32_t CPU::exec() {
         // add immediate to accumulator
         case 0xC6:
             cycles = 2;
-            A += rom[PC + 1];
+            A += read_mem(PC + 1);
             F &= 0x0F;
             if(A == 0) F |= 0b10000000; // set zero flag
             if(A & 0b00001000) F |= 0b00100000; // set half carry flag
@@ -867,7 +928,7 @@ uint32_t CPU::exec() {
         // add immediate with carry
         case 0xCE:
             cycles = 2;
-            A += rom[PC + 1] + ((F & 0b00010000) >> 4);
+            A += read_mem(PC + 1) + ((F & 0b00010000) >> 4);
             F &= 0x0F;
             if(A == 0) F |= 0b10000000; // set zero flag
             if(A & 0b00001000) F |= 0b00100000; // set half carry flag
@@ -902,7 +963,7 @@ uint32_t CPU::exec() {
         // subtract immediate from accumulator
         case 0xD6:
             cycles = 2;
-            A -= rom[PC + 1];
+            A -= read_mem(PC + 1);
             F &= 0x0F;
             if(A == 0) F |= 0b10000000; // set zero flag
             if(A & 0b00001000) F |= 0b00100000; // set half carry flag
@@ -937,7 +998,7 @@ uint32_t CPU::exec() {
         // subtract immediate with carry
         case 0xDE:
             cycles = 2;
-            A -= rom[PC + 1] + ((F & 0b00010000) >> 4);
+            A -= read_mem(PC + 1) + ((F & 0b00010000) >> 4);
             F &= 0x0F;
             if(A == 0) F |= 0b10000000; // set zero flag
             if(A & 0b00001000) F |= 0b00100000; // set half carry flag
@@ -970,14 +1031,16 @@ uint32_t CPU::exec() {
             cp_r(7);
             break;
         // compare immediate
-        case 0xFE:
+        case 0xFE:{
             cycles = 2;
             F &= 0x0F;
-            if(A == rom[PC + 1]) F |= 0b10000000; // set zero flag
-            if(((A - rom[PC + 1]) & 0b00001000)) F |= 0b00100000; // set half carry flag
-            if(A < rom[PC + 1]) F |= 0b00010000; // set carry flag
+            BYTE val = read_mem(PC + 1);
+            if(A == val) F |= 0b10000000; // set zero flag
+            if(((A - val) & 0b00001000)) F |= 0b00100000; // set half carry flag
+            if(A < val) F |= 0b00010000; // set carry flag
             PC += 2;
             break;
+        }
         // increment register
         case 0b00000100:
             inc_r(0);
@@ -1056,7 +1119,7 @@ uint32_t CPU::exec() {
         // bitwise and immediate
         case 0xE6:
             cycles = 2;
-            A &= rom[PC + 1];
+            A &= read_mem(PC + 1);
             F &= 0x0F;
             if(A == 0) F |= 0b10000000; // set zero flag
             F |= 0b00100000; // set half carry flag
@@ -1090,7 +1153,7 @@ uint32_t CPU::exec() {
         // bitwise or immediate
         case 0xF6:
             cycles = 2;
-            A |= rom[PC + 1];
+            A |= read_mem(PC + 1);
             F &= 0x0F;
             if(A == 0) F |= 0b10000000; // set zero flag
             PC += 2;
@@ -1123,7 +1186,7 @@ uint32_t CPU::exec() {
         // bitwise xor immediate
         case 0xEE:
             cycles = 2;
-            A ^= rom[PC + 1];
+            A ^= read_mem(PC + 1);
             F &= 0x0F;
             if(A == 0) F |= 0b10000000; // set zero flag
             PC += 2;
@@ -1213,7 +1276,7 @@ uint32_t CPU::exec() {
         // add relative to stack pointer
         case 0xE8:
             cycles = 4;
-            SP += SIGNED_BYTE(rom[PC + 1]);
+            SP += SIGNED_BYTE(read_mem(PC + 1));
             F &= 0x0F; // clear flags
             if(SP & 0b10000000) {
                 F |= 0b00010000; // set carry flag
@@ -1261,7 +1324,7 @@ uint32_t CPU::exec() {
         }
         case 0xCB:{
             PC++;
-            BYTE opcode = rom[PC]; 
+            BYTE opcode = read_mem(PC); 
             switch(opcode){
                 case 0b00000000:
                     rotate_left_circular(0);
@@ -1550,7 +1613,7 @@ uint32_t CPU::exec() {
         // return from interrupt handler
         case 0xD9:
             cycles = 4;  
-            PC = rom[SP++] + (rom[SP++] << 8);
+            PC = read_mem(SP++) + (read_mem(SP++) << 8);
             IME = 1;
             break;
         // restarts

@@ -4,6 +4,7 @@
 #include <functional>
 
 #define PC_START 0x100
+#define RAM_BANK_SIZE 0x8000
 
 typedef unsigned char BYTE;
 typedef char SIGNED_BYTE;
@@ -48,19 +49,28 @@ class CPU {
 public:
     CPU(BYTE* rom);
 
+    BYTE read_mem(WORD addr);
+    void write_mem(WORD addr, BYTE data);
+
     // execute the next instruction returns the number of cycles the instruction took
     uint32_t exec();
 
 private:
     BYTE* rom;
+    BYTE ram[RAM_BANK_SIZE];
+    BYTE curr_rom_bank, curr_ram_bank;
     uint32_t cycles;
     Register af, bc, de, hl, sp, pc;
     std::vector<std::function<BYTE&()>> r8;
     std::vector<std::function<WORD&()>> r16;
     std::vector<std::function<Register&()>> r16stk;
     std::vector<std::function<WORD&()>> r16mem;
-    BYTE IME;   // interrupt master enable
+    BYTE IME; // interrupt master enable
     BYTE IME_next;
+    bool mbc1, mbc2;
+    bool ram_en, rom_banking;
+
+    void bank_mem(WORD addr, BYTE data);
 
     inline void ld_r_r(BYTE r1, BYTE r2);
     inline void ld_r_imm(BYTE r);

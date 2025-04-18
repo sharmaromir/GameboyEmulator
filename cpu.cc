@@ -2,10 +2,12 @@
 #include <vector>
 #include <functional>
 #include <memory>
+#include <cstring>
 
 #include "cpu.h"
 
-CPU::CPU(BYTE* rom) : pc(PC_START), rom(rom), af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), cycles(0) {
+CPU::CPU(BYTE* rom) : pc(PC_START), af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), 
+                      cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), mbc1(false), mbc2(false), rom_banking(true) {
     // initialize rom values
     rom[0xFF05] = 0x00;
     rom[0xFF06] = 0x00;
@@ -39,6 +41,16 @@ CPU::CPU(BYTE* rom) : pc(PC_START), rom(rom), af(0x01B0), bc(0x0013), de(0x00D8)
     rom[0xFF4B] = 0x00;
     rom[0xFFFF] = 0x00;
 
+    // set mbc type
+    if(rom[0x147] == 1 || rom[0x147] == 2 || rom[0x147] == 3) {
+        mbc1 = true;
+    }else if(rom[0x147] == 5 || rom[0x147] == 6) {
+        mbc2 = true;
+    }
+
+    // set ram banks to 0
+    memset(ram, 0, sizeof(ram));
+
     r8 = {
         [this]() -> BYTE& { return B; },
         [this]() -> BYTE& { return C; },
@@ -70,6 +82,88 @@ CPU::CPU(BYTE* rom) : pc(PC_START), rom(rom), af(0x01B0), bc(0x0013), de(0x00D8)
         [this]() -> WORD& { return HL; }, // increment
         [this]() -> WORD& { return HL; } // decrement
     };
+}
+
+BYTE CPU::read_mem(WORD addr) {
+    // rom bank
+    if((addr >= 0x4000) && (addr <= 0x7FFF)) {
+        return rom[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
+    }
+    // ram bank
+    else if((addr >= 0xA000) && (addr <= 0xBFFF)) {
+        return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
+    }
+    // memory
+    else {
+        return rom[addr];
+    }
+}
+
+void CPU::write_mem(WORD addr, BYTE data) {
+    // banking
+    if(addr < 0x8000) {
+        bank_mem(addr, data);
+    }
+    // write to ram
+    else if ((addr >= 0xA000) && (addr < 0xC000) && ram_en) {
+        if(ram_en) {
+            WORD newAddress = addr - 0xA000;
+            ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
+        }
+    }
+    // echo ram
+    else if((addr >= 0xE000) && (addr < 0xFE00)) {
+        rom[addr] = data;
+        write_mem(addr-0x2000, data);
+    }
+    // write if not restrictied address
+    else if (!((addr >= 0xFEA0) && (addr < 0xFEFF))) {
+        rom[addr] = data;
+    }
+}
+
+void CPU::bank_mem(WORD addr, BYTE data) {
+    // ram enable
+    if(addr < 0x2000 && (mbc1 || mbc2)) {
+        if (mbc2 && addr & (1<<4)) {
+            return;
+        }
+
+        if (data & 0xF == 0xA)
+            ram_en = true;
+        else if (data & 0xF == 0x0)
+            ram_en = false;
+    }
+    // rom bank change
+    else if((addr >= 0x200) && (addr < 0x4000) && (mbc1 || mbc2)) {
+        if(mbc2) {
+            curr_rom_bank = data & 0xF;
+            if(curr_rom_bank == 0)
+                curr_rom_bank++;
+        }else {
+            BYTE lower5 = data & 31 ;
+            curr_rom_bank = (curr_rom_bank & 0xE0) | (data & 0x1F);
+            if (curr_rom_bank == 0)
+                curr_rom_bank++;
+        }
+    }
+    // do ROM or RAM bank change
+    else if((addr >= 0x4000) && (addr < 0x6000) && mbc1) {
+        if(rom_banking) {
+            curr_rom_bank = (curr_rom_bank & 0x1F) | (data & 0xE0);
+            if(curr_rom_bank == 0)
+                curr_rom_bank++;
+        }else {
+            curr_ram_bank = data & 3;
+        }
+    }
+    // change rom ram mode
+    else if((addr >= 0x6000) && (addr < 0x8000) && mbc1) {
+        BYTE newData = data & 0x1 ;
+        rom_banking = !(data & 0x1);
+        if (rom_banking)
+            curr_ram_bank = 0;
+    }
 }
 
 inline void CPU::ld_r_r(BYTE r1, BYTE r2) {

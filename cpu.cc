@@ -166,6 +166,47 @@ void CPU::bank_mem(WORD addr, BYTE data) {
     }
 }
 
+void CPU::handleInterrupt(int signal) {
+    IME = false;
+    write_mem(0xFF0F, read_mem(0xFF0F) & ~(1 << signal)); // reset bit
+    write_mem(--SP, PC); // push pc onto stack
+    switch (signal) {
+        case 0:
+            PC = 0x40;
+            break;
+        case 1:
+            PC = 0x48;
+            break;
+        case 2:
+            PC = 0x50;
+            break;
+        case 4:
+            PC = 0x60;
+            break;
+        default:
+            fprintf(stderr, "Invalid interrupt signal");
+            exit(1);
+    }
+}
+
+inline void CPU::interrupt(int signal) {
+    write_mem(0xFF0F, read_mem(0xFF0F) | (1 << signal)); // set bit
+}
+
+void CPU::checkInterrupts() {
+    if (IME) { // master interupt switch
+        BYTE IRR = read_mem(0xFF0F); // Interupt Request Register
+        BYTE IER = read_mem(0xFFFF); // Interupt Enabled Register
+        if (IRR > 0) {
+            for (int i = 0; i < 5; i++) {
+                if ((IRR & (1 << i)) && (IER & (1 << i))) {
+                    handleInterrupt(i);
+                }
+            }
+        }
+    }
+}
+
 inline void CPU::ld_r_r(BYTE r1, BYTE r2) {
     cycles = 1 + (r2 == 6 || r1 == 6);
     r8[r1]() = r8[r2]();

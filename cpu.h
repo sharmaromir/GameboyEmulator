@@ -51,6 +51,9 @@ public:
 
     BYTE read_mem(WORD addr);
     void write_mem(WORD addr, BYTE data);
+    void interrupt(int signal);
+    void checkInterrupts();
+    void handleInterrupt(int signal);
 
     // execute the next instruction returns the number of cycles the instruction took
     uint32_t exec();

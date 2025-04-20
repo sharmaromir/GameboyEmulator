@@ -1,8 +1,10 @@
 CPP_COMPILER ?= g++
 OPT ?= 3
 CCFLAGS = -Wall -O${OPT} -g -std=c++17
+LDFLAGS = -lSDL -lGL -lGLU
 
 EMULATOR = .run
+SCREEN = screen
 
 # Collect all .cc sources and corresponding object files
 SRCS := $(wildcard *.cc)
@@ -13,7 +15,11 @@ all: $(EMULATOR)
 
 # Link all object files into the emulator binary
 $(EMULATOR): $(OBJS)
-	$(CPP_COMPILER) $(CXXFLAGS) -o $@ $(OBJS)
+	$(CPP_COMPILER) $(CXXFLAGS) -o $@ $(OBJS) 
+
+game: screen.cc
+	$(CPP_COMPILER) $(CCFLAGS) screen.cc -o $(SCREEN) $(LDFLAGS)
+	./$(SCREEN)
 
 # Compile each .cc into .o
 %.o: %.cc

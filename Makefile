@@ -1,37 +1,40 @@
-CPP_COMPILER ?= g++
-OPT ?= 3
-CCFLAGS = -Wall -O${OPT} -g -std=c++17
-LDFLAGS = -lSDL -lGL -lGLU
+#———— Variables ——————————————————————————————
+CPP_COMPILER := g++
+OPT           ?= 3
+CXXFLAGS      := -Wall -O${OPT} -g -std=c++17
+LDFLAGS       := -lSDL -lGL -lGLU
 
-EMULATOR = .run
-SCREEN = screen
+EMULATOR      := .run
+SCREEN        := screen
 
-# Collect all .cc sources and corresponding object files
-SRCS := $(wildcard *.cc)
-OBJS := $(SRCS:.cc=.o)
+SRCS          := $(wildcard *.cc)
+OBJS          := $(SRCS:.cc=.o)
+ROMS          := $(shell find . -type f -name '*.gb')
 
-.PHONY: all clean $(ROMS)
+#———— Phony targets ————————————————————————————
+.PHONY: all clean
+
+#———— Default build ——————————————————————————
 all: $(EMULATOR)
 
-# Link all object files into the emulator binary
+#———— Link emulator binary ————————————————————
 $(EMULATOR): $(OBJS)
-	$(CPP_COMPILER) $(CXXFLAGS) -o $@ $(OBJS) 
+	$(CPP_COMPILER) $(CXXFLAGS) -o $@ $^
 
+#———— Build your SDL “game” helper ———————————
 game: screen.cc
-	$(CPP_COMPILER) $(CCFLAGS) screen.cc -o $(SCREEN) $(LDFLAGS)
+	$(CPP_COMPILER) $(CXXFLAGS) $< -o $(SCREEN) $(LDFLAGS)
 	./$(SCREEN)
 
-# Compile each .cc into .o
+#———— Compile each .cc to .o ———————————————
 %.o: %.cc
 	$(CPP_COMPILER) $(CXXFLAGS) -c $< -o $@
 
-# Run emulator on any .gb ROM: make name.gb
-ROMS := $(wildcard *.gb)
-.PHONY: $(ROMS)
-$(ROMS): %: $(EMULATOR)
+#———— Run *any* .gb under ./ recursively —————————
+%.gb: $(EMULATOR)
 	@echo "Running $(EMULATOR) on ROM: $@"
 	@/usr/bin/time -f "Elapsed time: %E" ./$(EMULATOR) $@
 
-# Clean up build artifacts
+#———— Clean up —————————————————————————————
 clean:
 	-rm -f $(EMULATOR) $(OBJS)

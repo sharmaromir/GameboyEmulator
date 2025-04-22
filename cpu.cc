@@ -532,10 +532,14 @@ inline void CPU::call(bool is_conditional, int flag, int condition) {
 inline void CPU::ret(bool is_conditional, int flag, int condition) {
     if (!is_conditional) {
         cycles = 4;
-        PC = read_mem(SP++) + (read_mem(SP++) << 8);
+        BYTE low = read_mem(SP++);
+        BYTE high = read_mem(SP++);
+        PC = low + (high << 8);
     } else if (flag == condition) {
         cycles = 5;
-        PC = read_mem(SP++) + (read_mem(SP++) << 8);
+        BYTE low = read_mem(SP++);
+        BYTE high = read_mem(SP++);
+        PC = low + (high << 8);
     } else {
         cycles = 2;
         PC += 1;
@@ -1649,11 +1653,14 @@ uint32_t CPU::exec() {
             ret(true, Carry, true);
             break;
         // return from interrupt handler
-        case 0xD9:
+        case 0xD9: {
             cycles = 4;  
-            PC = read_mem(SP++) + (read_mem(SP++) << 8);
+            BYTE low = read_mem(SP++);
+            BYTE high = read_mem(SP++);
+            PC = low + (high << 8);
             IME = 1;
             break;
+        }
         // restarts
         case 0b11000111:    // rst 0x0
             restart(0x00);

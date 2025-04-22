@@ -11,10 +11,15 @@ static const int windowHeight = 144;
 #define CYCLES_PER_FRAME 10
 #define FPS 60
 
+#define VERTICAL_BLANK_SCAN_LINE 0x90
+#define VERTICAL_BLANK_SCAN_LINE_MAX 0x99
+#define RETRACE_START 456
+#define MAX_ROM_SIZE 0x200000
+
 CPU cpu;
 LCD lcd;
 PPU ppu;
-Emulator em;
+int cycles_this_update = 0;
 
 void init_screen() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -56,17 +61,47 @@ void render_game() {
 	SDL_GL_SwapBuffers( ) ;
 }
 
-void emulator_setup() {
-    em.set_render_func(render_game);
-    // tests/cpu_instrs/individual/01-special.gb
-    em.load_rom("tests/cpu_instrs/individual/09-op r,r.gb");
-    cpu = em.get_cpu();
-    lcd = em.get_lcd();
-    ppu = em.get_ppu();
+
+void emulator_update() {
+    cycles_this_update = 0 ;
+	const int target_cycles = 70221 ;
+    while (cycles_this_update < target_cycles) {
+ 		int cycles = cpu.exec() ;
+ 		cycles_this_update += cycles;
+        lcd.update(cpu, ppu, cycles);
+    }
+    render_game();
 }
 
+
+bool load_rom(const string& rom_name) {
+    BYTE rom[MAX_ROM_SIZE];
+
+    FILE* fin;
+    fin = fopen(rom_name.c_str(), "rb");
+    size_t read_count = fread(rom, 1, MAX_ROM_SIZE, fin);
+    if (read_count != MAX_ROM_SIZE) {
+        if (ferror(fin)) {
+            fprintf(stderr, "Error reading file\n");
+            exit(1);
+        }
+    }
+    fclose(fin);
+
+    cpu = CPU(rom);
+    lcd = LCD();
+    ppu = PPU();
+
+    return true;
+}
+
+void emulator_setup() {
+    load_rom("tests/cpu_instrs/individual/04-op r,imm.gb");
+}
+
+
 void game_loop() {
-    uint32_t temp_clock_cap = 10;
+    uint32_t temp_clock_cap = 100;
 
     uint32_t curr_cycles = 0;
     
@@ -77,7 +112,7 @@ void game_loop() {
             curr_cycles += cpu.exec();
         }
         curr_cycles = 0;
-        em.emulator_update();
+        emulator_update();
         auto frameEnd = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart);
         if (elapsed < frame_dur) {
@@ -91,7 +126,6 @@ int main(int argc, char** argv) {
     init_screen();
     emulator_setup();
     game_loop();
-    printf("Game loop finished\n");
     // SDL_Delay(3000);
     
     SDL_Quit( ) ;

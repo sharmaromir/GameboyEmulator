@@ -48,7 +48,7 @@ union Register {
 class CPU {
 
 public:
-    CPU();
+    CPU() {};
     CPU(BYTE* rom);
 
     BYTE read_mem(WORD addr);

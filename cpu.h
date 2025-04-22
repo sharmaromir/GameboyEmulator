@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <functional>
+#include <cstdint>
 
 #define PC_START 0x100
 #define RAM_BANK_SIZE 0x8000
@@ -51,9 +52,12 @@ public:
 
     BYTE read_mem(WORD addr);
     void write_mem(WORD addr, BYTE data);
+    
     void interrupt(int signal);
     void checkInterrupts();
     void handleInterrupt(int signal);
+
+    BYTE screen[160][144][3];
 
     // execute the next instruction returns the number of cycles the instruction took
     uint32_t exec();

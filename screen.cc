@@ -29,10 +29,6 @@ LCD lcd;
 PPU ppu;
 int cycles_this_update = 0;
 
-void emulator_setup() {
-    load_rom("tests/cpu_instrs/individual/04-op r,imm.gb");
-}
-
 void init_screen() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
@@ -106,6 +102,9 @@ bool load_rom(const string& rom_name) {
     return true;
 }
 
+void emulator_setup() {
+    load_rom("tests/cpu_instrs/individual/04-op r,imm.gb");
+}
 
 void game_loop() {
     uint32_t temp_clock_cap = 100;

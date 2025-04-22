@@ -1,9 +1,15 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_opengl.h>
+#include <iostream>
+#include <chrono>
+#include <thread>
 #include "emulator.h"
 
 static const int windowWidth = 160;
 static const int windowHeight = 144;
+
+#define CYCLES_PER_FRAME 10
+#define FPS 60
 
 CPU cpu;
 LCD lcd;
@@ -53,36 +59,30 @@ void render_game() {
 void emulator_setup() {
     em.set_render_func(render_game);
     // tests/cpu_instrs/individual/01-special.gb
-    em.load_rom("tests/cpu_instrs/individual/01-special.gb");
+    em.load_rom("red.gb");
     cpu = em.get_cpu();
     lcd = em.get_lcd();
     ppu = em.get_ppu();
 }
 
 void game_loop() {
-    bool quit = false ;
-    SDL_Event event;
+    uint32_t temp_clock_cap = 10;
 
-    float fps = 59.73 ;
-    float interval = 1000 ;
-    interval /= fps ;
-
-    unsigned int init_ticks = SDL_GetTicks() ;
-
-    while (!quit) {
-        // while (SDL_PollEvent(&event)) {
-        //     if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_q)) {
-        //         quit = true;
-        //     }
-        // }
-
-        unsigned int current = SDL_GetTicks();
-
-        if ((init_ticks + interval) < current) {
-            em.emulator_update();
-            init_ticks = current ;
+    uint32_t curr_cycles = 0;
+    
+    std::chrono::milliseconds frame_dur(1000 / FPS);
+    while(temp_clock_cap-- > 0) {
+        auto frameStart = std::chrono::steady_clock::now();
+        while(curr_cycles < CYCLES_PER_FRAME) {
+            curr_cycles += cpu.exec();
         }
-
+        curr_cycles = 0;
+        em.emulator_update();
+        auto frameEnd = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart);
+        if (elapsed < frame_dur) {
+            std::this_thread::sleep_for(frame_dur - elapsed);
+        }
     }
 }
 
@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
     init_screen();
     emulator_setup();
     game_loop();
-    
+    printf("Game loop finished\n");
     // SDL_Delay(3000);
     
     SDL_Quit( ) ;

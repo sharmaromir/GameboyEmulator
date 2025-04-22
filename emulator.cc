@@ -46,9 +46,8 @@ void Emulator::emulator_update() {
     cycles_this_update = 0 ;
 	const int target_cycles = 70221 ;
     while (cycles_this_update < target_cycles) {
-        int curr_cycle = cycles_this_update ;
- 		cpu.exec() ;
- 		int cycles = cycles_this_update - curr_cycle;
+ 		int cycles = cpu.exec() ;
+ 		cycles_this_update += cycles;
         lcd.update(cpu, ppu, cycles);
     }
     render_func();

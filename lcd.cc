@@ -5,7 +5,7 @@ LCD::LCD() {
 }
 
 void LCD::update(CPU cpu, PPU ppu, int cycles) {
-    // printf("LCD update\n");
+    setMode(cpu);
     if (cpu.read_mem(0xFF40) & 0b10000000) { // check lcd enable bit
         // printf("LCD enabled\n");
         slCtr -= cycles; // update scanline counter
@@ -31,15 +31,16 @@ void LCD::setMode(CPU cpu) {
         BYTE currLine = cpu.read_mem(0xFF44); // get current scanline
         BYTE currMode = LCDSR & 0b11; // get current mode
         if (currLine >= 144) { // mode 1
-            modeChanged = (LCDSR & 0b1000) && currMode != 1;
+            modeChanged = (LCDSR & 0b10000) && currMode != 1;
             LCDSR = (LCDSR & 0b11111101) | 0b1; // set lower 2 bits to 1
         } else if (slCtr >= 456 - 80) { // mode 2
-            modeChanged = (LCDSR & 0b10000) && currMode != 2;
+            modeChanged = (LCDSR & 0b100000) && currMode != 2;
             LCDSR = (LCDSR & 0b11111110) | 0b10; // set lower 2 bits to 2
         } else if (slCtr >= 456 - 80 - 172) { // mode 3
+            modeChanged = false;
             LCDSR = LCDSR  | 0b11; // set lower 2 bits to 3
         } else { // mode 0
-            modeChanged = (LCDSR & 0b100) && currMode != 0;
+            modeChanged = (LCDSR & 0b1000) && currMode != 0;
             LCDSR = LCDSR & 0b11111100; // set lower 2 bits to 0
         }
         if (modeChanged) {
@@ -57,6 +58,6 @@ void LCD::setMode(CPU cpu) {
     } else {
         slCtr = 456; // reset scanline counter
         cpu.write_mem(0xFF44, 0); // reset scanline
-        cpu.write_mem(0xFF41, LCDSR & 0b11111101);
+        cpu.write_mem(0xFF41, (LCDSR & 0b11111101) | 0b1);
     }
 }

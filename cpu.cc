@@ -480,11 +480,13 @@ inline void CPU::swap(BYTE r) {
     cycles = 2 + 2*(r==6);
     F &= 0x0F; // clear flags
     BYTE value = (r==6) ? read_mem(HL) : r8[r]();
+    // printf("swap %X\n", value);
     if(r==6){
         write_mem(HL, ((value & 0b11110000) >> 4) | ((value & 0b00001111) << 4));
     } else {
         r8[r]() = ((value & 0b11110000) >> 4) | ((value & 0b00001111) << 4);
     }
+    // printf("swapped %X\n", r8[r]());
     F |= (value == 0) << 7; // set zero flag
     PC += 1;
 }
@@ -555,9 +557,9 @@ inline void CPU::restart(BYTE n) {
 
 uint32_t CPU::exec() {
     BYTE opc = read_mem(PC);
-
-    // printf("%X: %X\n", PC, opc);
-    // printf("%X %X\n", A, F);
+    printf("PC: %04X OPC: %02X\n", PC, opc);
+    std::string temp;
+    std::getline(std::cin, temp);
     switch(opc) {
         // nop
         case 0x00:
@@ -1365,6 +1367,7 @@ uint32_t CPU::exec() {
             break;
         }
         case 0xCB:{
+            printf("cb prefix\n");
             PC++;
             BYTE opcode = read_mem(PC); 
             switch(opcode){
@@ -1514,6 +1517,7 @@ uint32_t CPU::exec() {
                     break;
                 // swapping nibbles
                 case 0b00110000:
+                    printf("swap 0\n");
                     swap(0);
                     break;
                 case 0b00110001:

@@ -41,13 +41,14 @@ union Register {
         BYTE high;
     };
     WORD word;
-
+    Register() {};
     Register(WORD val) : word(val) {};
 };
 
 class CPU {
 
 public:
+    CPU();
     CPU(BYTE* rom);
 
     BYTE read_mem(WORD addr);

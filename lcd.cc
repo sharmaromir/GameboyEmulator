@@ -1,6 +1,7 @@
 #include "lcd.h"
-#include "cpu.h"
-#include "ppu.h"
+
+LCD::LCD() {
+}
 
 void LCD::update(CPU cpu, PPU ppu, int cycles) {
     if (cpu.read_mem(0xFF40) & 0b10000000) { // check lcd enable bit

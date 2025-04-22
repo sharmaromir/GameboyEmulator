@@ -1,5 +1,8 @@
 #include "ppu.h"
 
+PPU::PPU () {
+}
+
 int getColor(CPU cpu, WORD addr, int colorId) {
     BYTE palette = cpu.read_mem(addr);
     return (((palette >> (colorId * 2 + 1)) & 0b1) << 1) | ((palette >> (colorId * 2)) & 0b1);

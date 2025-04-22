@@ -6,6 +6,8 @@
 
 #include "cpu.h"
 
+CPU::CPU() {}
+
 CPU::CPU(BYTE* rom) : pc(PC_START), af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), 
                       cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), mbc1(false), mbc2(false), rom_banking(true) {
     // initialize rom values
@@ -189,7 +191,7 @@ void CPU::handleInterrupt(int signal) {
     }
 }
 
-inline void CPU::interrupt(int signal) {
+void CPU::interrupt(int signal) {
     write_mem(0xFF0F, read_mem(0xFF0F) | (1 << signal)); // set bit
 }
 

@@ -1,41 +1,99 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_opengl.h>
+#include "emulator.h"
 
 static const int windowWidth = 160;
 static const int windowHeight = 144;
 
-// int main(int argc, char** argv) {
-//     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-//         fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
-//         return 1;
-//     }
+CPU cpu;
+LCD lcd;
+PPU ppu;
+Emulator em;
 
-//     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+void init_screen() {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
+        exit(1);
+    }
 
-//     if (SDL_SetVideoMode(windowWidth, windowHeight, 32, SDL_OPENGL) == NULL) {
-//         fprintf(stderr, "Failed to set video mode: %s\n", SDL_GetError());
-//         return 1;
-//     }
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-//     glViewport(0, 0, windowWidth, windowHeight);
-//     glMatrixMode(GL_MODELVIEW);
-//     glLoadIdentity();
-//     glOrtho(0, windowWidth, windowHeight, 0, -1.0, 1.0);
+    if (SDL_SetVideoMode(windowWidth, windowHeight, 32, SDL_OPENGL) == NULL) {
+        fprintf(stderr, "Failed to set video mode: %s\n", SDL_GetError());
+        exit(1);
+    }
 
-//     glClearColor(0, 0, 0, 1.0);
-//     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-//     glShadeModel(GL_FLAT);
+    glViewport(0, 0, windowWidth, windowHeight);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glOrtho(0, windowWidth, windowHeight, 0, -1.0, 1.0);
 
-//     glEnable(GL_TEXTURE_2D);
-//     glDisable(GL_DEPTH_TEST);
-//     glDisable(GL_CULL_FACE);
-//     glDisable(GL_DITHER);
-//     glDisable(GL_BLEND);
+    glClearColor(0, 0, 0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glShadeModel(GL_FLAT);
 
-//     SDL_GL_SwapBuffers();
+    glEnable(GL_TEXTURE_2D);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DITHER);
+    glDisable(GL_BLEND);
 
-//     SDL_Delay(3000);
+    SDL_GL_SwapBuffers();
+}
 
-//     SDL_Quit();
-//     return 0;
-// }
+void render_game() {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+ 	glLoadIdentity();
+ 	glRasterPos2i(-1, 1);
+	glPixelZoom(1, -1);
+ 	glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, cpu.screen); // SCREEN DATA GOES HERE
+	SDL_GL_SwapBuffers( ) ;
+}
+
+void emulator_setup() {
+    em.set_render_func(render_game);
+    // tests/cpu_instrs/individual/01-special.gb
+    em.load_rom("tests/cpu_instrs/individual/01-special.gb");
+    cpu = em.get_cpu();
+    lcd = em.get_lcd();
+    ppu = em.get_ppu();
+}
+
+void game_loop() {
+    bool quit = false ;
+    SDL_Event event;
+
+    float fps = 59.73 ;
+    float interval = 1000 ;
+    interval /= fps ;
+
+    unsigned int init_ticks = SDL_GetTicks() ;
+
+    while (!quit) {
+        // while (SDL_PollEvent(&event)) {
+        //     if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_q)) {
+        //         quit = true;
+        //     }
+        // }
+
+        unsigned int current = SDL_GetTicks();
+
+        if ((init_ticks + interval) < current) {
+            em.emulator_update();
+            init_ticks = current ;
+        }
+
+    }
+}
+
+int main(int argc, char** argv) {
+    
+    init_screen();
+    emulator_setup();
+    game_loop();
+    
+    // SDL_Delay(3000);
+    
+    SDL_Quit( ) ;
+    return 0;
+}

@@ -1,9 +1,15 @@
+
 #include <SDL/SDL.h>
 #include <SDL/SDL_opengl.h>
 #include <iostream>
 #include <chrono>
 #include <thread>
-#include "emulator.h"
+#include "lcd.h"
+#include <stdlib.h>
+#include <string>
+#include "cpu.h"
+#include "ppu.h"
+
 
 static const int windowWidth = 160;
 static const int windowHeight = 144;
@@ -16,10 +22,16 @@ static const int windowHeight = 144;
 #define RETRACE_START 456
 #define MAX_ROM_SIZE 0x200000
 
+typedef std::string string;
+
 CPU cpu;
 LCD lcd;
 PPU ppu;
 int cycles_this_update = 0;
+
+void emulator_setup() {
+    load_rom("tests/cpu_instrs/individual/04-op r,imm.gb");
+}
 
 void init_screen() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -61,7 +73,6 @@ void render_game() {
 	SDL_GL_SwapBuffers( ) ;
 }
 
-
 void emulator_update() {
     cycles_this_update = 0 ;
 	const int target_cycles = 70221 ;
@@ -93,10 +104,6 @@ bool load_rom(const string& rom_name) {
     ppu = PPU();
 
     return true;
-}
-
-void emulator_setup() {
-    load_rom("tests/cpu_instrs/individual/04-op r,imm.gb");
 }
 
 

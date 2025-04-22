@@ -6,9 +6,7 @@
 
 #include "cpu.h"
 
-CPU::CPU() {}
-
-CPU::CPU(BYTE* rom) : pc(PC_START), af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), 
+CPU::CPU(BYTE* rom) : af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), pc(PC_START), 
                       cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), mbc1(false), mbc2(false), rom_banking(true) {
     // initialize rom values
     rom[0xFF05] = 0x00;
@@ -109,7 +107,6 @@ void CPU::write_mem(WORD addr, BYTE data) {
     // write to ram
     else if ((addr >= 0xA000) && (addr < 0xC000) && ram_en) {
         if(ram_en) {
-            WORD newAddress = addr - 0xA000;
             ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
         }
     }
@@ -131,9 +128,9 @@ void CPU::bank_mem(WORD addr, BYTE data) {
             return;
         }
 
-        if (data & 0xF == 0xA)
+        if ((data & 0xF) == 0xA)
             ram_en = true;
-        else if (data & 0xF == 0x0)
+        else if ((data & 0xF) == 0x0)
             ram_en = false;
     }
     // rom bank change
@@ -143,7 +140,6 @@ void CPU::bank_mem(WORD addr, BYTE data) {
             if(curr_rom_bank == 0)
                 curr_rom_bank++;
         }else {
-            BYTE lower5 = data & 31 ;
             curr_rom_bank = (curr_rom_bank & 0xE0) | (data & 0x1F);
             if (curr_rom_bank == 0)
                 curr_rom_bank++;
@@ -161,7 +157,6 @@ void CPU::bank_mem(WORD addr, BYTE data) {
     }
     // change rom ram mode
     else if((addr >= 0x6000) && (addr < 0x8000) && mbc1) {
-        BYTE newData = data & 0x1 ;
         rom_banking = !(data & 0x1);
         if (rom_banking)
             curr_ram_bank = 0;
@@ -557,8 +552,8 @@ inline void CPU::restart(BYTE n) {
 uint32_t CPU::exec() {
     BYTE opc = read_mem(PC);
 
-    printf("%X: %X\n", PC, opc);
-    printf("%X %X\n", A, F);
+    // printf("%X: %X\n", PC, opc);
+    // printf("%X %X\n", A, F);
     switch(opc) {
         // nop
         case 0x00:
@@ -1351,7 +1346,7 @@ uint32_t CPU::exec() {
             BYTE carry = Carry;
             F &= 0x0F; // clear flags
             F |= (A & 0b10000000) >> 3; // set carry flag
-            A = (A << 1) | (C);
+            A = (A << 1) | (carry);
             PC += 1;
             break;
         }
@@ -1361,7 +1356,7 @@ uint32_t CPU::exec() {
             BYTE carry = Carry;
             F &= 0x0F; // clear flags
             F |= (A & 0b00000001) << 4; // set carry flag
-            A = (A >> 1) | (C << 7);
+            A = (A >> 1) | (carry << 7);
             PC += 1;
             break;
         }
@@ -1568,17 +1563,17 @@ uint32_t CPU::exec() {
                         case 0b00:
                             std::cerr << "cb meow?" << std::endl;exit(-1);
                         case 0b01: // test bit
-                            cycles = 2 + (opcode&0b00000111==6);
+                            cycles = 2 + ((opcode&0b00000111)==6);
                             F &= 0x1F;
                             F |= 0b00100000; // set half carry flag
-                            if(((r8[opcode & 0b00000111]())>>((opcode>>3)&7))&1 == 0) F |= 0b10000000; // set zero flag
+                            if((((r8[opcode & 0b00000111]())>>((opcode>>3)&7))&1) == 0) F |= 0b10000000; // set zero flag
                             break;
                         case 0b10: // reset bit
-                            cycles = 2 + (opcode&0b00000111==6);
+                            cycles = 2 + ((opcode&0b00000111)==6);
                             r8[opcode & 0b00000111]() &= ~(1 << ((opcode>>3)&7));
                             break;
                         case 0b11: // set bit
-                            cycles = 2 + (opcode&0b00000111==6);
+                            cycles = 2 + ((opcode&0b00000111)==6);
                             r8[opcode & 0b00000111]() |= (1 << ((opcode>>3)&7));
                             break;  
                     }

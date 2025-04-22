@@ -64,19 +64,20 @@ public:
     uint32_t exec();
 
 private:
-    BYTE* rom;
     BYTE ram[RAM_BANK_SIZE];
-    BYTE curr_rom_bank, curr_ram_bank;
-    uint32_t cycles;
     Register af, bc, de, hl, sp, pc;
+    uint32_t cycles;
+    BYTE* rom;
+    BYTE curr_rom_bank, curr_ram_bank;
+    bool mbc1, mbc2;
+    bool rom_banking;
     std::vector<std::function<BYTE&()>> r8;
     std::vector<std::function<WORD&()>> r16;
     std::vector<std::function<Register&()>> r16stk;
     std::vector<std::function<WORD&()>> r16mem;
     BYTE IME; // interrupt master enable
     BYTE IME_next;
-    bool mbc1, mbc2;
-    bool ram_en, rom_banking;
+    bool ram_en;
 
     void bank_mem(WORD addr, BYTE data);
 

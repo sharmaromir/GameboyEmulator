@@ -59,7 +59,7 @@ void render_game() {
 void emulator_setup() {
     em.set_render_func(render_game);
     // tests/cpu_instrs/individual/01-special.gb
-    em.load_rom("red.gb");
+    em.load_rom("tests/cpu_instrs/individual/09-op r,r.gb");
     cpu = em.get_cpu();
     lcd = em.get_lcd();
     ppu = em.get_ppu();

@@ -1,10 +1,13 @@
 #include "lcd.h"
+#include <stdio.h>
 
 LCD::LCD() {
 }
 
 void LCD::update(CPU cpu, PPU ppu, int cycles) {
+    // printf("LCD update\n");
     if (cpu.read_mem(0xFF40) & 0b10000000) { // check lcd enable bit
+        // printf("LCD enabled\n");
         slCtr -= cycles; // update scanline counter
         if (slCtr <= 0) {
             slCtr = 456; // reset scanline counter

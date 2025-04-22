@@ -103,7 +103,7 @@ bool load_rom(const string& rom_name) {
 }
 
 void emulator_setup() {
-    load_rom("tests/cpu_instrs/individual/04-op r,imm.gb");
+    load_rom("tests/cpu_instrs/individual/09-op r,r.gb");
 }
 
 void game_loop() {

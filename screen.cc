@@ -31,14 +31,14 @@ int cycles_this_update = 0;
 
 void init_screen() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
+        printf("Failed to initialize SDL: %s\n", SDL_GetError());
         exit(1);
     }
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
     if (SDL_SetVideoMode(windowWidth, windowHeight, 32, SDL_OPENGL) == NULL) {
-        fprintf(stderr, "Failed to set video mode: %s\n", SDL_GetError());
+        printf("Failed to set video mode: %s\n", SDL_GetError());
         exit(1);
     }
 
@@ -47,11 +47,13 @@ void init_screen() {
     glLoadIdentity();
     glOrtho(0, windowWidth, windowHeight, 0, -1.0, 1.0);
 
+    SDL_WM_SetCaption("Gameboy Emulator", NULL);
+
     glClearColor(0, 0, 0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glShadeModel(GL_FLAT);
 
-    glEnable(GL_TEXTURE_2D);
+    glDisable(GL_TEXTURE_2D);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glDisable(GL_DITHER);
@@ -89,7 +91,7 @@ bool load_rom(const string& rom_name) {
     size_t read_count = fread(rom, 1, MAX_ROM_SIZE, fin);
     if (read_count != MAX_ROM_SIZE) {
         if (ferror(fin)) {
-            fprintf(stderr, "Error reading file\n");
+            printf("Error reading file\n");
             exit(1);
         }
     }
@@ -103,16 +105,26 @@ bool load_rom(const string& rom_name) {
 }
 
 void emulator_setup() {
-    load_rom("tests/cpu_instrs/individual/09-op r,r.gb");
+    load_rom("tests/cpu_instrs/cpu_instrs.gb");
 }
 
 void game_loop() {
-    uint32_t temp_clock_cap = 100;
-
+    bool quit = false;
+    SDL_Event event;
+    // uint32_t temp_clock_cap = 1000;
     uint32_t curr_cycles = 0;
     
     std::chrono::milliseconds frame_dur(1000 / FPS);
-    while(temp_clock_cap-- > 0) {
+    while(!quit) {
+        while(SDL_PollEvent(&event)) {
+            if(event.type == SDL_QUIT) {
+                quit = true;
+                break;
+            }
+        }
+        
+        if(quit) break;
+
         auto frameStart = std::chrono::steady_clock::now();
         while(curr_cycles < CYCLES_PER_FRAME) {
             curr_cycles += cpu.exec();

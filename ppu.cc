@@ -1,4 +1,5 @@
 #include "ppu.h"
+#include <stdio.h>
 
 PPU::PPU () {
 }
@@ -66,9 +67,9 @@ void PPU::renderTiles(CPU& cpu) {
                 cpu.screen[i][scanline][2] = 0x77;
                 break;
             case 3:
-                cpu.screen[i][scanline][0] = 0;
-                cpu.screen[i][scanline][1] = 0;
-                cpu.screen[i][scanline][2] = 0;
+                cpu.screen[i][scanline][0] = 0x0;
+                cpu.screen[i][scanline][1] = 0x0;
+                cpu.screen[i][scanline][2] = 0x0;
                 break;
         }
     }

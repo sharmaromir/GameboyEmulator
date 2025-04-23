@@ -13,7 +13,7 @@ void PPU::renderTiles(CPU cpu) {
 
     WORD background;
     BYTE currLine;
-
+\
     BYTE SCY = cpu.read_mem(0xFF42);
     BYTE SCX = cpu.read_mem(0xFF43);
 
@@ -48,7 +48,7 @@ void PPU::renderTiles(CPU cpu) {
 
         int colorBit = -1 * (currCol % 8 - 7);
         int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
-        int color = getColor(cpu, colorId, 0xFF47);
+        int color = getColor(cpu, 0xFF47, colorId);
         switch (color) {
             case 0:
                 cpu.screen[i][scanline][0] = 255;
@@ -92,7 +92,7 @@ void PPU::renderSprites(CPU cpu) {
             for (int j = 0; j < 8; j++) {
                 int colorBit = flags & 0b100000 ? 7 - j : j;
                 int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
-                int color = getColor(cpu, colorId, flags & 0x10000 ? 0xFF49 : 0xFF48);
+                int color = getColor(cpu, flags & 0x10000 ? 0xFF49 : 0xFF48, colorId);
 
                 switch (color) {
                     case 1:

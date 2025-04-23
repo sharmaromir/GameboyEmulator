@@ -32,7 +32,7 @@ void PPU::renderTiles(CPU& cpu) {
         background = LCDCR & 0b1000 ? 0x9C00 : 0x9800;
         currLine = scanline + SCY;
     }
-    WORD row = (currLine / 8 * 32);
+    WORD row = currLine / 8 * 32;
     
     for (int i = 0; i < 160; i++) {
         BYTE currCol = windowOn && i >= WX ? i + SCX - WX : i + SCX;
@@ -41,7 +41,7 @@ void PPU::renderTiles(CPU& cpu) {
         if (LCDCR & 0b10000) {
             tileMem = tileData + cpu.read_mem(background + row + currCol / 8) * 16;
         } else {
-            tileMem = tileData + (cpu.read_mem((SIGNED_BYTE) (background + row + currCol / 8)) + 128) * 16;
+            tileMem = tileData + ((SIGNED_BYTE) cpu.read_mem(background + row + currCol / 8) + 128) * 16;
         }
 
         BYTE data1 = cpu.read_mem(tileMem + 2 * (currLine % 8));

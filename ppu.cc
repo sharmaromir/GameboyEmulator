@@ -14,7 +14,7 @@ void PPU::renderTiles(CPU& cpu) {
 
     WORD background;
     BYTE currLine;
-\
+
     BYTE SCY = cpu.read_mem(0xFF42);
     BYTE SCX = cpu.read_mem(0xFF43);
 

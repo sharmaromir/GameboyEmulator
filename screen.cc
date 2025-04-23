@@ -105,7 +105,7 @@ bool load_rom(const string& rom_name) {
 }
 
 void emulator_setup() {
-    load_rom("tests/cpu_instrs/cpu_instrs.gb");
+    load_rom("tests/cpu_instrs/individual/01-special.gb");
 }
 
 void game_loop() {

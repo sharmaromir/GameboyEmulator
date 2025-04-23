@@ -71,16 +71,19 @@ private:
     BYTE curr_rom_bank, curr_ram_bank;
     bool mbc1, mbc2;
     bool rom_banking;
-    std::vector<std::function<BYTE&()>> r8;
-    std::vector<std::function<WORD&()>> r16;
-    std::vector<std::function<Register&()>> r16stk;
-    std::vector<std::function<WORD&()>> r16mem;
     BYTE IME; // interrupt master enable
     BYTE IME_next;
     bool ram_en;
 
     void bank_mem(WORD addr, BYTE data);
-
+    inline void write_r8(BYTE r, BYTE data);
+    inline BYTE read_r8(BYTE r);
+    inline void write_r16(BYTE r, WORD data);
+    inline WORD read_r16(BYTE r);
+    inline void write_r16mem(BYTE r, WORD data);
+    inline WORD read_r16mem(BYTE r);
+    inline void write_r16stk(BYTE r, WORD data, bool high);
+    inline WORD read_r16stk(BYTE r, bool high);
     inline void ld_r_r(BYTE r1, BYTE r2);
     inline void ld_r_imm(BYTE r);
     inline void ld_a_r16mem(BYTE r);

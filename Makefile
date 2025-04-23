@@ -23,7 +23,7 @@ $(EMULATOR): $(OBJS)
 
 #———— Build your SDL “game” helper ———————————
 game: $(SCREEN)
-	./$(SCREEN)
+	./$(SCREEN) 2> screen.log
 
 # Link screen.cc with all object files
 $(SCREEN): screen.cc $(filter-out screen.o, $(OBJS))

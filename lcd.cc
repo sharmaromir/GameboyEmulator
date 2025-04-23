@@ -6,19 +6,19 @@ LCD::LCD() {
 
 void LCD::update(CPU cpu, PPU ppu, int cycles) {
     setMode(cpu);
+    BYTE currLine = cpu.read_mem(0xFF44); // get current scanline
+    if (currLine >= 154) {
+        cpu.write_mem(0xFF44, 0); // reset scanline
+    }
     if (cpu.read_mem(0xFF40) & 0b10000000) { // check lcd enable bit
-        // printf("LCD enabled\n");
         slCtr -= cycles; // update scanline counter
         if (slCtr <= 0) {
             slCtr = 456; // reset scanline counter
             cpu.write_mem(0xFF44, cpu.read_mem(0xFF44) + 1); // go to next scanline
-            BYTE currLine = cpu.read_mem(0xFF44); // get current scanline
             if (currLine < 144) {
                 ppu.draw(cpu);
             } else if (currLine == 144) { // vblank
                 cpu.interrupt(0);
-            } else if (currLine >= 154) {
-                cpu.write_mem(0xFF44, 0); // reset scanline
             }
         }
     }

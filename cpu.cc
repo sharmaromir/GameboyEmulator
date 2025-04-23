@@ -174,7 +174,9 @@ void CPU::bank_mem(WORD addr, BYTE data) {
 void CPU::handleInterrupt(int signal) {
     IME = false;
     write_mem(0xFF0F, read_mem(0xFF0F) & ~(1 << signal)); // reset bit
-    write_mem(--SP, PC); // push pc onto stack
+    // push pc onto stack
+    write_mem(--SP, pchigh);
+    write_mem(--SP, pclow);
     switch (signal) {
         case 0:
             PC = 0x40;
@@ -199,14 +201,12 @@ void CPU::interrupt(int signal) {
 }
 
 void CPU::checkInterrupts() {
-    if (IME) { // master interupt switch
-        BYTE IRR = read_mem(0xFF0F); // Interupt Request Register
-        BYTE IER = read_mem(0xFFFF); // Interupt Enabled Register
-        if (IRR > 0) {
-            for (int i = 0; i < 5; i++) {
-                if ((IRR & (1 << i)) && (IER & (1 << i))) {
-                    handleInterrupt(i);
-                }
+    BYTE IRR = read_mem(0xFF0F); // Interupt Request Register
+    BYTE IER = read_mem(0xFFFF); // Interupt Enabled Register
+    if (IME && IRR > 0) { // master interupt switch
+        for (int i = 0; i < 5; i++) {
+            if ((IRR & (1 << i)) && (IER & (1 << i))) {
+                handleInterrupt(i);
             }
         }
     }

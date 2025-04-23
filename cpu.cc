@@ -8,7 +8,7 @@
 
 CPU::CPU(BYTE* rom) : af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), pc(PC_START), 
                       cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), 
-                      mbc1(false), mbc2(false), rom_banking(true), divider_reg(0), timer_counter(1024) {
+                      mbc1(false), mbc2(false), rom_banking(true), divider_reg(0), timer_counter(1024), joypad_state(0xFF) {
     // initialize rom values
     rom[0xFF05] = 0x00;
     rom[0xFF06] = 0x00;
@@ -152,6 +152,19 @@ BYTE CPU::read_mem(WORD addr) {
     // ram bank
     else if((addr >= 0xA000) && (addr <= 0xBFFF)) {
         return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
+    }
+    // input
+    else if(addr == 0xFF00) {
+        BYTE ret = ~(rom[0xFF00]);
+        // standard buttons
+        if(!(ret & (1 << 4))) {
+            ret &= (joypad_state >> 4) | 0xF0; 
+        }
+        // directional buttons
+        else if(!(ret & (1 << 5))) {
+            ret &= (joypad_state & 0xF) | 0xF0;
+        }
+        return ret;
     }
     // memory
     else {
@@ -303,6 +316,25 @@ void CPU::update_timers(int cycles) {
             }
         }
     }
+}
+
+void CPU::key_pressed(int key_code) {
+    bool already_pressed = !(joypad_state & (1 << key_code));
+    bool std_btn = key_code > 3;
+    
+    // set new joypad state
+    joypad_state = ~((~joypad_state) | (1 << key_code));
+
+    BYTE key_req = rom[0xFF00];
+    bool req_interrupt = (std_btn && !(key_req & (1 << 5))) || (!std_btn && !(key_req & (1 << 4)));
+
+    if(req_interrupt && !already_pressed) {
+        interrupt(4);
+    }
+}
+
+void CPU::key_released(int key_code) {
+    joypad_state = joypad_state & (~(1 << key_code));
 }
 
 inline void CPU::ld_r_r(BYTE r1, BYTE r2) {

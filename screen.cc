@@ -10,7 +10,6 @@
 #include "cpu.h"
 #include "ppu.h"
 
-
 static const int windowWidth = 160*2;
 static const int windowHeight = 144*2;
 
@@ -109,6 +108,38 @@ void emulator_setup() {
     load_rom("tests/cpu_instrs/individual/01-special.gb");
 }
 
+int get_key(int code) {
+    switch(code) {
+        case SDLK_RIGHT:
+            return 0;
+            break;
+        case SDLK_LEFT:
+            return 1;
+            break;
+        case SDLK_UP:
+            return 2;
+            break;
+        case SDLK_DOWN:
+            return 3;
+            break;
+        case SDLK_a:
+            return 4;
+            break;
+        case SDLK_s:
+            return 5;
+            break;
+        case SDLK_SPACE:
+            return 6;
+            break;
+        case SDLK_RETURN:
+            return 7;
+            break;
+        default:
+            return -1; // unmapped key
+            break;
+    }
+}
+
 void game_loop() {
     bool quit = false;
     SDL_Event event;
@@ -116,9 +147,23 @@ void game_loop() {
     std::chrono::milliseconds frame_dur(1000 / FPS);
     while(!quit) {
         while(SDL_PollEvent(&event)) {
-            if(event.type == SDL_QUIT) {
-                quit = true;
-                break;
+            int key_code;
+            switch(event.type) {
+                case SDL_QUIT:
+                    quit = true;
+                    break;
+                case SDL_KEYDOWN:
+                    key_code = get_key(event.key.keysym.sym);
+                    if(key_code >= 0)
+                        cpu.key_pressed(key_code);
+                    break;
+                case SDL_KEYUP:
+                    key_code = get_key(event.key.keysym.sym);
+                    if(key_code >= 0)
+                        cpu.key_released(key_code);
+                    break;
+                default:
+                    break;
             }
         }
         

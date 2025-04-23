@@ -59,6 +59,9 @@ public:
     void handle_interrupt(int signal);
     void update_timers(int cycles);
 
+    void key_pressed(int key_code);
+    void key_released(int key_code);
+
     BYTE screen[144][160][3];
 
     // execute the next instruction returns the number of cycles the instruction took
@@ -77,6 +80,7 @@ private:
     bool ram_en;
     BYTE divider_reg;
     int timer_counter;
+    BYTE joypad_state;
 
     void bank_mem(WORD addr, BYTE data);
     void set_clock_freq();

@@ -52,24 +52,24 @@ void PPU::renderTiles(CPU& cpu) {
         int color = getColor(cpu, 0xFF47, colorId);
         switch (color) {
             case 0:
-                cpu.screen[i][scanline][0] = 255;
-                cpu.screen[i][scanline][1] = 255;
-                cpu.screen[i][scanline][2] = 255;
+                cpu.screen[scanline][i][0] = 255;
+                cpu.screen[scanline][i][1] = 255;
+                cpu.screen[scanline][i][2] = 255;
                 break;
             case 1:
-                cpu.screen[i][scanline][0] = 0xCC;
-                cpu.screen[i][scanline][1] = 0xCC;
-                cpu.screen[i][scanline][2] = 0xCC;
+                cpu.screen[scanline][i][0] = 0xCC;
+                cpu.screen[scanline][i][1] = 0xCC;
+                cpu.screen[scanline][i][2] = 0xCC;
                 break;
             case 2:
-                cpu.screen[i][scanline][0] = 0x77;
-                cpu.screen[i][scanline][1] = 0x77;
-                cpu.screen[i][scanline][2] = 0x77;
+                cpu.screen[scanline][i][0] = 0x77;
+                cpu.screen[scanline][i][1] = 0x77;
+                cpu.screen[scanline][i][2] = 0x77;
                 break;
             case 3:
-                cpu.screen[i][scanline][0] = 0x0;
-                cpu.screen[i][scanline][1] = 0x0;
-                cpu.screen[i][scanline][2] = 0x0;
+                cpu.screen[scanline][i][0] = 0x0;
+                cpu.screen[scanline][i][1] = 0x0;
+                cpu.screen[scanline][i][2] = 0x0;
                 break;
         }
     }
@@ -79,14 +79,15 @@ void PPU::renderSprites(CPU& cpu) {
     BYTE LCDCR = cpu.read_mem(0xFF40); // LCD Control Register
 
     for (int i = 0; i < 40; i++) {
-        BYTE XPos = cpu.read_mem(i * 4 + 0xFE00 + 1) - 8;
-        BYTE YPos = cpu.read_mem(i + 0xFE00) - 16;
-        BYTE flags = cpu.read_mem(i + 0xFE00 + 3);
+        BYTE idx = i * 4;
+        BYTE XPos = cpu.read_mem(idx + 0xFE00 + 1) - 8;
+        BYTE YPos = cpu.read_mem(idx + 0xFE00) - 16;
+        BYTE flags = cpu.read_mem(idx + 0xFE00 + 3);
         BYTE scanline = cpu.read_mem(0xFF44);
         int spriteSize = LCDCR & 0b100 ? 16 : 8;
 
         if (scanline >= YPos && scanline < YPos + spriteSize) {
-            WORD addr = 0x8000 + cpu.read_mem(i + 0xFE00 + 2) * 16 + 2 * (flags & 0b1000000 ? YPos + spriteSize - scanline : scanline - YPos);
+            WORD addr = 0x8000 + cpu.read_mem(idx + 0xFE00 + 2) * 16 + 2 * (flags & 0b1000000 ? YPos + spriteSize - scanline : scanline - YPos);
             BYTE data1 = cpu.read_mem(addr);
             BYTE data2 = cpu.read_mem(addr + 1);
 
@@ -97,19 +98,19 @@ void PPU::renderSprites(CPU& cpu) {
 
                 switch (color) {
                     case 1:
-                        cpu.screen[XPos + 7 - j][scanline][0] = 0xCC;
-                        cpu.screen[XPos + 7 - j][scanline][1] = 0xCC;
-                        cpu.screen[XPos + 7 - j][scanline][2] = 0xCC;
+                        cpu.screen[scanline][XPos + 7 - j][0] = 0xCC;
+                        cpu.screen[scanline][XPos + 7 - j][1] = 0xCC;
+                        cpu.screen[scanline][XPos + 7 - j][2] = 0xCC;
                         break;
                     case 2:
-                        cpu.screen[XPos + 7 - j][scanline][0] = 0x77;
-                        cpu.screen[XPos + 7 - j][scanline][1] = 0x77;
-                        cpu.screen[XPos + 7 - j][scanline][2] = 0x77;
+                        cpu.screen[scanline][XPos + 7 - j][0] = 0x77;
+                        cpu.screen[scanline][XPos + 7 - j][1] = 0x77;
+                        cpu.screen[scanline][XPos + 7 - j][2] = 0x77;
                         break;
                     case 3:
-                        cpu.screen[XPos + 7 - j][scanline][0] = 0;
-                        cpu.screen[XPos + 7 - j][scanline][1] = 0;
-                        cpu.screen[XPos + 7 - j][scanline][2] = 0;
+                        cpu.screen[scanline][XPos + 7 - j][0] = 0;
+                        cpu.screen[scanline][XPos + 7 - j][1] = 0;
+                        cpu.screen[scanline][XPos + 7 - j][2] = 0;
                         break;
                 }
             }

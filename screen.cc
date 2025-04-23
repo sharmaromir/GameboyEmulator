@@ -11,8 +11,8 @@
 #include "ppu.h"
 
 
-static const int windowWidth = 160;
-static const int windowHeight = 144;
+static const int windowWidth = 160*2;
+static const int windowHeight = 144*2;
 
 #define CYCLES_PER_FRAME 10
 #define FPS 60
@@ -66,7 +66,7 @@ void render_game() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
  	glLoadIdentity();
  	glRasterPos2i(-1, 1);
-	glPixelZoom(1, -1);
+	glPixelZoom(2, -2);
  	glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, cpu.screen); // SCREEN DATA GOES HERE
 	SDL_GL_SwapBuffers( ) ;
 }
@@ -78,6 +78,7 @@ void emulator_update() {
  		int cycles = cpu.exec() ;
  		cycles_this_update += cycles;
         lcd.update(cpu, ppu, cycles);
+        cpu.checkInterrupts();
     }
     render_game();
 }

@@ -14,7 +14,7 @@ void PPU::renderTiles(CPU& cpu) {
 
     WORD background;
     BYTE currLine;
-
+\
     BYTE SCY = cpu.read_mem(0xFF42);
     BYTE SCX = cpu.read_mem(0xFF43);
 
@@ -35,7 +35,7 @@ void PPU::renderTiles(CPU& cpu) {
     WORD row = currLine / 8 * 32;
     
     for (int i = 0; i < 160; i++) {
-        BYTE currCol = windowOn && i >= WX ? i + SCX - WX : i + SCX;
+        BYTE currCol = windowOn && i >= WX ? i - WX : i + SCX;
         WORD tileMem;
 
         if (LCDCR & 0b10000) {
@@ -47,7 +47,7 @@ void PPU::renderTiles(CPU& cpu) {
         BYTE data1 = cpu.read_mem(tileMem + 2 * (currLine % 8));
         BYTE data2 = cpu.read_mem(tileMem + 2 * (currLine % 8) + 1);
 
-        int colorBit = -1 * (currCol % 8 - 7);
+        int colorBit = 7 - currCol % 8;
         int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
         int color = getColor(cpu, 0xFF47, colorId);
         switch (color) {
@@ -94,7 +94,12 @@ void PPU::renderSprites(CPU& cpu) {
             for (int j = 0; j < 8; j++) {
                 int colorBit = flags & 0b100000 ? 7 - j : j;
                 int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
-                int color = getColor(cpu, flags & 0x10000 ? 0xFF49 : 0xFF48, colorId);
+                int color = getColor(cpu, flags & 0b10000 ? 0xFF49 : 0xFF48, colorId);
+
+                // Sprite BG Priority
+                if (flags & 0b10000000 && (cpu.screen[scanline][XPos + 7 - j][0] != 255 || cpu.screen[scanline][XPos + 7 - j][1] != 255 || cpu.screen[scanline][XPos + 7 - j][2] != 255)) {
+                    continue;
+                }
 
                 switch (color) {
                     case 1:

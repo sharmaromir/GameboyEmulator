@@ -59,7 +59,7 @@ public:
     void handle_interrupt(int signal);
     void update_timers(int cycles);
 
-    BYTE screen[160][144][3];
+    BYTE screen[144][160][3];
 
     // execute the next instruction returns the number of cycles the instruction took
     uint32_t exec();

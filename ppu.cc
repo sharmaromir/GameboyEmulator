@@ -3,12 +3,12 @@
 PPU::PPU () {
 }
 
-int getColor(CPU cpu, WORD addr, int colorId) {
+int getColor(CPU& cpu, WORD addr, int colorId) {
     BYTE palette = cpu.read_mem(addr);
     return (((palette >> (colorId * 2 + 1)) & 0b1) << 1) | ((palette >> (colorId * 2)) & 0b1);
 }
 
-void PPU::renderTiles(CPU cpu) {
+void PPU::renderTiles(CPU& cpu) {
     BYTE LCDCR = cpu.read_mem(0xFF40); // LCD Control Register
 
     WORD background;
@@ -74,7 +74,7 @@ void PPU::renderTiles(CPU cpu) {
     }
 }
 
-void PPU::renderSprites(CPU cpu) {
+void PPU::renderSprites(CPU& cpu) {
     BYTE LCDCR = cpu.read_mem(0xFF40); // LCD Control Register
 
     for (int i = 0; i < 40; i++) {
@@ -116,7 +116,7 @@ void PPU::renderSprites(CPU cpu) {
     }
 }
 
-void PPU::draw(CPU cpu) {
+void PPU::draw(CPU& cpu) {
     BYTE LCDCR = cpu.read_mem(0xFF40); // LCD Control Register
     if (LCDCR & 0b1) {
         renderTiles(cpu);

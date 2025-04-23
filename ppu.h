@@ -4,7 +4,7 @@
 class PPU {
     public:
         PPU();
-        void renderTiles(CPU cpu);
-        void renderSprites(CPU cpu);
-        void draw(CPU cpu);
+        void renderTiles(CPU& cpu);
+        void renderSprites(CPU& cpu);
+        void draw(CPU& cpu);
 };

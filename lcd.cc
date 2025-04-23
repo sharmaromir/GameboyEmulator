@@ -4,7 +4,7 @@
 LCD::LCD() {
 }
 
-void LCD::update(CPU cpu, PPU ppu, int cycles) {
+void LCD::update(CPU& cpu, PPU& ppu, int cycles) {
     setMode(cpu);
     BYTE currLine = cpu.read_mem(0xFF44); // get current scanline
     if (currLine >= 154) {
@@ -24,7 +24,7 @@ void LCD::update(CPU cpu, PPU ppu, int cycles) {
     }
 }
 
-void LCD::setMode(CPU cpu) {
+void LCD::setMode(CPU& cpu) {
     BYTE LCDSR = cpu.read_mem(0xFF41); // LCD Status Register
     if (cpu.read_mem(0xFF40) & 0b10000000) { // check lcd enable bit
         bool modeChanged = false;

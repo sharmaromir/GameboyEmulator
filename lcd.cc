@@ -7,20 +7,20 @@ LCD::LCD() {
 void LCD::update(CPU& cpu, PPU& ppu, int cycles) {
     setMode(cpu);
     if (cpu.read_mem(0xFF40) & 0b10000000) { // check lcd enable bit
+        slCtr -= cycles; // update scanline counter
         BYTE currLine = cpu.read_mem(0xFF44); // get current scanline
         if (currLine > 153) {
             cpu.write_mem(0xFF44, 0); // reset scanline
+            currLine = 0;
         }
-        slCtr -= cycles; // update scanline counter
         if (slCtr <= 0) {
             slCtr = 456; // reset scanline counter
-            currLine++;
-            cpu.write_mem(0xFF44, currLine); // go to next scanline
             if (currLine < 144) {
                 ppu.draw(cpu);
             } else if (currLine == 144) { // vblank
                 cpu.interrupt(0);
             }
+            cpu.write_mem(0xFF44, currLine + 1); // go to next scanline
         }
     }
 }

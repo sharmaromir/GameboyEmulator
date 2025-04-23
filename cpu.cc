@@ -7,7 +7,8 @@
 #include "cpu.h"
 
 CPU::CPU(BYTE* rom) : af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), pc(PC_START), 
-                      cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), mbc1(false), mbc2(false), rom_banking(true) {
+                      cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), 
+                      mbc1(false), mbc2(false), rom_banking(true), divider_reg(0), timer_counter(1024) {
     // initialize rom values
     rom[0xFF05] = 0x00;
     rom[0xFF06] = 0x00;
@@ -132,9 +133,18 @@ WORD CPU::read_r16stk(BYTE r, bool high) {
     exit(-1);
 }
 
+void CPU::set_clock_freq() {
+    BYTE freq = read_mem(0xFF07) & 3;
+    switch(freq) {
+        case 0: timer_counter = 1024; break; // freq 4096
+        case 1: timer_counter = 16; break; // freq 262144
+        case 2: timer_counter = 64; break; // freq 65536
+        case 3: timer_counter = 256; break; // freq 16382
+    }
+}
+
 
 BYTE CPU::read_mem(WORD addr) {
-    // if(addr == 0xFF44) return 0x90; // DO NOT KEEP
     // rom bank
     if((addr >= 0x4000) && (addr <= 0x7FFF)) {
         return rom[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
@@ -164,6 +174,15 @@ void CPU::write_mem(WORD addr, BYTE data) {
     else if((addr >= 0xE000) && (addr < 0xFE00)) {
         rom[addr] = data;
         write_mem(addr-0x2000, data);
+    }
+    // timer controller
+    else if(addr == 0xFF07) {
+        rom[addr] = data;
+        set_clock_freq();
+    }
+    // divider register
+    else if(addr == 0xFF04) {
+        rom[0xFF04] = 0;
     }
     // write if not restrictied address
     else if (!((addr >= 0xFEA0) && (addr < 0xFEFF))) {
@@ -221,7 +240,7 @@ void CPU::bank_mem(WORD addr, BYTE data) {
     }
 }
 
-void CPU::handleInterrupt(int signal) {
+void CPU::handle_interrupt(int signal) {
     IME = false;
     write_mem(0xFF0F, read_mem(0xFF0F) & ~(1 << signal)); // reset bit
     // push pc onto stack
@@ -250,13 +269,37 @@ void CPU::interrupt(int signal) {
     write_mem(0xFF0F, read_mem(0xFF0F) | (1 << signal)); // set bit
 }
 
-void CPU::checkInterrupts() {
+void CPU::check_interrupts() {
     BYTE IRR = read_mem(0xFF0F); // Interupt Request Register
     BYTE IER = read_mem(0xFFFF); // Interupt Enabled Register
     if (IME && IRR > 0) { // master interupt switch
         for (int i = 0; i < 5; i++) {
             if ((IRR & (1 << i)) && (IER & (1 << i))) {
-                handleInterrupt(i);
+                handle_interrupt(i);
+            }
+        }
+    }
+}
+
+void CPU::update_timers(int cycles) {
+    // update divider register
+    if(255 - divider_reg < cycles)
+        rom[0xFF04]++;
+    divider_reg += cycles;
+
+    // update timers if clock is enabled
+    if(read_mem(0xFF07) & (1 << 2)) {
+        timer_counter -= cycles;
+        if(timer_counter <= 0) {
+            set_clock_freq();
+
+            // timer overflow
+            BYTE timer = read_mem(0xFF05);
+            if(timer == 255) {
+                write_mem(0xFF05, read_mem(0xFF06));
+                handle_interrupt(2);
+            }else {
+                write_mem(0xFF05, timer+1);
             }
         }
     }

@@ -76,7 +76,8 @@ void emulator_update() {
     while (cycle_cnt < CYCLES_PER_FRAME) {
  		int curr_cycles = cpu.exec();
         lcd.update(cpu, ppu, curr_cycles);
-        cpu.checkInterrupts();
+        cpu.check_interrupts();
+        cpu.update_timers(curr_cycles);
         cycle_cnt += curr_cycles;
     }
     render_game();

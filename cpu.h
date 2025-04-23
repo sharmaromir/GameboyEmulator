@@ -55,8 +55,9 @@ public:
     void write_mem(WORD addr, BYTE data);
     
     void interrupt(int signal);
-    void checkInterrupts();
-    void handleInterrupt(int signal);
+    void check_interrupts();
+    void handle_interrupt(int signal);
+    void update_timers(int cycles);
 
     BYTE screen[160][144][3];
 
@@ -74,8 +75,11 @@ private:
     BYTE IME; // interrupt master enable
     BYTE IME_next;
     bool ram_en;
+    BYTE divider_reg;
+    int timer_counter;
 
     void bank_mem(WORD addr, BYTE data);
+    void set_clock_freq();
     inline void write_r8(BYTE r, BYTE data);
     inline BYTE read_r8(BYTE r);
     inline void write_r16(BYTE r, WORD data);

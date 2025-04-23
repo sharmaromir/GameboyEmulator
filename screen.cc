@@ -14,7 +14,7 @@
 static const int windowWidth = 160*2;
 static const int windowHeight = 144*2;
 
-#define CYCLES_PER_FRAME 10
+#define CYCLES_PER_FRAME 69905
 #define FPS 60
 
 #define VERTICAL_BLANK_SCAN_LINE 0x90
@@ -72,13 +72,12 @@ void render_game() {
 }
 
 void emulator_update() {
-    cycles_this_update = 0 ;
-	const int target_cycles = 70221 ;
-    while (cycles_this_update < target_cycles) {
- 		int cycles = cpu.exec() ;
- 		cycles_this_update += cycles;
-        lcd.update(cpu, ppu, cycles);
+    int cycle_cnt = 0;
+    while (cycle_cnt < CYCLES_PER_FRAME) {
+ 		int curr_cycles = cpu.exec();
+        lcd.update(cpu, ppu, curr_cycles);
         cpu.checkInterrupts();
+        cycle_cnt += curr_cycles;
     }
     render_game();
 }
@@ -112,8 +111,6 @@ void emulator_setup() {
 void game_loop() {
     bool quit = false;
     SDL_Event event;
-    // uint32_t temp_clock_cap = 1000;
-    uint32_t curr_cycles = 0;
     
     std::chrono::milliseconds frame_dur(1000 / FPS);
     while(!quit) {
@@ -127,10 +124,6 @@ void game_loop() {
         if(quit) break;
 
         auto frameStart = std::chrono::steady_clock::now();
-        while(curr_cycles < CYCLES_PER_FRAME) {
-            curr_cycles += cpu.exec();
-        }
-        curr_cycles = 0;
         emulator_update();
         auto frameEnd = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart);

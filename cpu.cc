@@ -133,17 +133,6 @@ WORD CPU::read_r16stk(BYTE r, bool high) {
     exit(-1);
 }
 
-void CPU::set_clock_freq() {
-    BYTE freq = read_mem(0xFF07) & 3;
-    switch(freq) {
-        case 0: timer_counter = 1024; break; // freq 4096
-        case 1: timer_counter = 16; break; // freq 262144
-        case 2: timer_counter = 64; break; // freq 65536
-        case 3: timer_counter = 256; break; // freq 16382
-    }
-}
-
-
 BYTE CPU::read_mem(WORD addr) {
     // rom bank
     if((addr >= 0x4000) && (addr < 0x8000)) {

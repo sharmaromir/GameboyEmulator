@@ -33,6 +33,12 @@ void PPU::renderTiles(CPU& cpu) {
         currLine = scanline + SCY;
     }
     WORD row = currLine / 8 * 32;
+
+    // cache color values
+    int colors[4];
+    for (int i = 0; i < 4; i++) {
+        colors[i] = getColor(cpu, 0xFF47, i);
+    }
     
     for (int i = 0; i < 160; i++) {
         BYTE currCol = windowOn && i >= WX ? i - WX : i + SCX;
@@ -49,7 +55,7 @@ void PPU::renderTiles(CPU& cpu) {
 
         int colorBit = 7 - currCol % 8;
         int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
-        int color = getColor(cpu, 0xFF47, colorId);
+        int color = colors[colorId];
         switch (color) {
             case 0:
                 cpu.screen[scanline][i][0] = 255;

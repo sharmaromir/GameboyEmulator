@@ -278,6 +278,9 @@ void CPU::handle_interrupt(int signal) {
             PC = 0x50;
             break;
         case 3:
+            pc = 0x58;
+            break;
+        case 4:
             PC = 0x60;
             break;
         default:

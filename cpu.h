@@ -69,7 +69,6 @@ public:
     // execute the next instruction returns the number of cycles the instruction took
     uint32_t exec();
 
-private:
     BYTE ram[RAM_BANK_SIZE];
     Register af, bc, de, hl, sp, pc;
     uint32_t cycles;

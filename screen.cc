@@ -73,9 +73,15 @@ void render_game() {
 void emulator_update() {
     int cycle_cnt = 0;
     while (cycle_cnt < CYCLES_PER_FRAME) {
+        // BYTE rmpc = cpu.read_mem(cpu.PC);
+        // BYTE rmpc1 = cpu.read_mem(cpu.PC + 1);
+        // BYTE rmpc2 = cpu.read_mem(cpu.PC + 2);
+        // BYTE rmpc3 = cpu.read_mem(cpu.PC + 3);
+        // fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n", cpu.A, cpu.F, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.SP, cpu.PC, rmpc, rmpc1, rmpc2, rmpc3);
+        cpu.check_interrupts();
  		int curr_cycles = cpu.exec();
         lcd.update(cpu, ppu, curr_cycles);
-        cpu.check_interrupts();
+
         cpu.update_timers(curr_cycles);
         cycle_cnt += curr_cycles;
         if(cpu.IME_next){
@@ -109,7 +115,7 @@ bool load_rom(const string& rom_name) {
 }
 
 void emulator_setup() {
-    load_rom("tests/cpu_instrs/individual/11-op a,(hl).gb");
+    load_rom("tests/cpu_instrs/individual/02-interrupts.gb");
 }
 
 int get_key(int code) {

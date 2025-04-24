@@ -56,27 +56,56 @@ void PPU::renderTiles(CPU& cpu) {
         int colorBit = 7 - currCol % 8;
         int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
         int color = colors[colorId];
+
+        bool dirty = false;
         switch (color) {
             case 0:
-                cpu.screen[scanline][i][0] = 255;
-                cpu.screen[scanline][i][1] = 255;
-                cpu.screen[scanline][i][2] = 255;
+                if (cpu.screen[scanline][i][0] != 255) {
+                    cpu.screen[scanline][i][0] = 255;
+                    cpu.screen[scanline][i][1] = 255;
+                    cpu.screen[scanline][i][2] = 255;
+                    dirty = true;
+                }
                 break;
             case 1:
-                cpu.screen[scanline][i][0] = 0xCC;
-                cpu.screen[scanline][i][1] = 0xCC;
-                cpu.screen[scanline][i][2] = 0xCC;
+                if (cpu.screen[scanline][i][0] != 0xCC) {
+                    cpu.screen[scanline][i][0] = 0xCC;
+                    cpu.screen[scanline][i][1] = 0xCC;
+                    cpu.screen[scanline][i][2] = 0xCC;
+                    dirty = true;
+                }
                 break;
             case 2:
-                cpu.screen[scanline][i][0] = 0x77;
-                cpu.screen[scanline][i][1] = 0x77;
-                cpu.screen[scanline][i][2] = 0x77;
+                if (cpu.screen[scanline][i][0] != 0x77) {
+                    cpu.screen[scanline][i][0] = 0x77;
+                    cpu.screen[scanline][i][1] = 0x77;
+                    cpu.screen[scanline][i][2] = 0x77;
+                    dirty = true;
+                    break;
+                }
                 break;
             case 3:
-                cpu.screen[scanline][i][0] = 0x0;
-                cpu.screen[scanline][i][1] = 0x0;
-                cpu.screen[scanline][i][2] = 0x0;
+                if (cpu.screen[scanline][i][0] != 0x0) {
+                    cpu.screen[scanline][i][0] = 0x0;
+                    cpu.screen[scanline][i][1] = 0x0;
+                    cpu.screen[scanline][i][2] = 0x0;
+                    dirty = true;
+                }
                 break;
+        }
+        if (dirty) {
+            if (scanline < cpu.dirtyMinY) {
+                cpu.dirtyMinY = scanline;
+            }
+            if (scanline > cpu.dirtyMaxY) {
+                cpu.dirtyMaxY = scanline;
+            }
+            if (i < cpu.dirtyMinX) {
+                cpu.dirtyMinX = i;
+            }
+            if (i > cpu.dirtyMaxX) {
+                cpu.dirtyMaxX = i;
+            }
         }
     }
 }
@@ -115,22 +144,46 @@ void PPU::renderSprites(CPU& cpu) {
                     continue;
                 }
 
+                bool dirty = false;
                 switch (color) {
                     case 1:
-                        cpu.screen[scanline][XPos + 7 - j][0] = 0xCC;
-                        cpu.screen[scanline][XPos + 7 - j][1] = 0xCC;
-                        cpu.screen[scanline][XPos + 7 - j][2] = 0xCC;
+                        if (cpu.screen[scanline][XPos + 7 - j][0] != 0xCC) {
+                            cpu.screen[scanline][XPos + 7 - j][0] = 0xCC;
+                            cpu.screen[scanline][XPos + 7 - j][1] = 0xCC;
+                            cpu.screen[scanline][XPos + 7 - j][2] = 0xCC;
+                            dirty = true;
+                        }
                         break;
                     case 2:
-                        cpu.screen[scanline][XPos + 7 - j][0] = 0x77;
-                        cpu.screen[scanline][XPos + 7 - j][1] = 0x77;
-                        cpu.screen[scanline][XPos + 7 - j][2] = 0x77;
+                        if (cpu.screen[scanline][XPos + 7 - j][0] != 0x77) {
+                            cpu.screen[scanline][XPos + 7 - j][0] = 0x77;
+                            cpu.screen[scanline][XPos + 7 - j][1] = 0x77;
+                            cpu.screen[scanline][XPos + 7 - j][2] = 0x77;
+                            dirty = true;
+                        }
                         break;
                     case 3:
-                        cpu.screen[scanline][XPos + 7 - j][0] = 0;
-                        cpu.screen[scanline][XPos + 7 - j][1] = 0;
-                        cpu.screen[scanline][XPos + 7 - j][2] = 0;
+                        if (cpu.screen[scanline][XPos + 7 - j][0] != 0x0) {
+                            cpu.screen[scanline][XPos + 7 - j][0] = 0x0;
+                            cpu.screen[scanline][XPos + 7 - j][1] = 0x0;
+                            cpu.screen[scanline][XPos + 7 - j][2] = 0x0;
+                            dirty = true;
+                        }
                         break;
+                }
+                if (dirty) {
+                    if (scanline < cpu.dirtyMinY) {
+                        cpu.dirtyMinY = scanline;
+                    }
+                    if (scanline > cpu.dirtyMaxY) {
+                        cpu.dirtyMaxY = scanline;
+                    }
+                    if (XPos + 7 - j < cpu.dirtyMinX) {
+                        cpu.dirtyMinX = XPos + 7 - j;
+                    }
+                    if (XPos + 7 - j > cpu.dirtyMaxX) {
+                        cpu.dirtyMaxX = XPos + 7 - j;
+                    }
                 }
             }
         }

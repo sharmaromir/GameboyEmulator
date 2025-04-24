@@ -66,6 +66,12 @@ public:
     BYTE IME = 0; // interrupt master enable
     BYTE IME_next = 0;
 
+    int dirtyMaxX = 0;
+    int dirtyMaxY = 0;
+    int dirtyMinX = 159;
+    int dirtyMinY = 143;
+    void resetDirty();
+
     // execute the next instruction returns the number of cycles the instruction took
     uint32_t exec();
 

@@ -315,6 +315,13 @@ void CPU::bank_mem(WORD addr, BYTE data) {
     }
 }
 
+void CPU::resetDirty() {
+    dirtyMaxX = 0;
+    dirtyMaxY = 0;
+    dirtyMinX = 159;
+    dirtyMinY = 143;
+}
+
 void CPU::handle_interrupt(int signal) {
     IME = false;
     write_mem(0xFF0F, read_mem(0xFF0F) & ~(1 << signal)); // reset bit
@@ -729,11 +736,11 @@ uint32_t CPU::exec() {
         return 1;
     }
     BYTE opc = read_mem(PC);
-    WORD pcval = PC;
-    BYTE rmpc =  opc;
-    BYTE rmpc1 = read_mem(PC + 1);
-    BYTE rmpc2 = read_mem(PC + 2);
-    BYTE rmpc3 = read_mem(PC + 3);
+    // WORD pcval = PC;
+    // BYTE rmpc =  opc;
+    // BYTE rmpc1 = read_mem(PC + 1);
+    // BYTE rmpc2 = read_mem(PC + 2);
+    // BYTE rmpc3 = read_mem(PC + 3);
     // fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n", A, F, B, C, D, E, H, L, SP, pcval, rmpc, rmpc1, rmpc2, rmpc3);
     switch(opc) {
         // nop

@@ -42,9 +42,11 @@ void init_screen() {
     }
 
     glViewport(0, 0, windowWidth, windowHeight);
-    glMatrixMode(GL_MODELVIEW);
+    glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0, windowWidth, windowHeight, 0, -1.0, 1.0);
+    glOrtho(0, 160, 144, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     SDL_WM_SetCaption("Gameboy Emulator", NULL);
 
@@ -61,13 +63,53 @@ void init_screen() {
     SDL_GL_SwapBuffers();
 }
 
+int count = 0;
+int minX;
+int maxX;
+int minY;
+int maxY;
+std::vector<BYTE> dirtyRect;
+
 void render_game() {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
- 	glLoadIdentity();
- 	glRasterPos2i(-1, 1);
+    glLoadIdentity();
 	glPixelZoom(2, -2);
- 	glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, cpu.screen); // SCREEN DATA GOES HERE
-	SDL_GL_SwapBuffers( ) ;
+    if (count < 2) {
+        glRasterPos2i(0, 0);
+        glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, cpu.screen); // SCREEN DATA GOES HERE
+        if (count) {
+            minX = cpu.dirtyMinX;
+            maxX = cpu.dirtyMaxX;
+            minY = cpu.dirtyMinY;
+            maxY = cpu.dirtyMaxY;
+        }
+        count++;
+    } else {
+        int tempMinX = std::min(minX, cpu.dirtyMinX);
+        int tempMaxX = std::max(maxX, cpu.dirtyMaxX);
+        int tempMinY = std::min(minY, cpu.dirtyMinY);
+        int tempMaxY = std::max(maxY, cpu.dirtyMaxY);
+        minX = cpu.dirtyMinX;
+        maxX = cpu.dirtyMaxX;
+        minY = cpu.dirtyMinY;
+        maxY = cpu.dirtyMaxY;
+        int width = tempMaxX - tempMinX + 1;
+        int height = tempMaxY - tempMinY + 1;
+        if (width > 0 && height > 0) {
+            dirtyRect.resize(height * width * 3);
+            for (int i = tempMinY; i <= tempMaxY; i++) {
+                for (int j = tempMinX; j <= tempMaxX; j++) {
+                    int idx = ((i - tempMinY) * width + (j - tempMinX)) * 3;
+                    dirtyRect[idx] = cpu.screen[i][j][0];
+                    dirtyRect[idx + 1] = cpu.screen[i][j][1];
+                    dirtyRect[idx + 2] = cpu.screen[i][j][2];
+                }
+            }
+            glRasterPos2i(tempMinX, tempMinY);
+            glDrawPixels(width, height, GL_RGB, GL_UNSIGNED_BYTE, dirtyRect.data());
+        }
+    }
+    SDL_GL_SwapBuffers();
+    cpu.resetDirty();
 }
 
 void emulator_update() {

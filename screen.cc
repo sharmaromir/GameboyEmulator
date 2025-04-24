@@ -105,7 +105,7 @@ bool load_rom(const string& rom_name) {
 }
 
 void emulator_setup() {
-    load_rom("tests/cpu_instrs/individual/01-special.gb");
+    load_rom("tests/cpu_instrs/individual/11-op a,(hl).gb");
 }
 
 int get_key(int code) {

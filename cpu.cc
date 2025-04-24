@@ -146,11 +146,11 @@ void CPU::set_clock_freq() {
 
 BYTE CPU::read_mem(WORD addr) {
     // rom bank
-    if((addr >= 0x4000) && (addr <= 0x7FFF)) {
+    if((addr >= 0x4000) && (addr < 0x8000)) {
         return rom[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
     }
     // ram bank
-    else if((addr >= 0xA000) && (addr <= 0xBFFF)) {
+    else if((addr >= 0xA000) && (addr < 0xC000)) {
         return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
     }
     // input
@@ -178,8 +178,10 @@ void CPU::write_mem(WORD addr, BYTE data) {
         bank_mem(addr, data);
     }
     // write to ram
-    else if ((addr >= 0xA000) && (addr < 0xC000) && ram_en) {
-        if(ram_en) {
+    else if((addr >= 0xA000) && (addr < 0xC000)) {
+        if(ram_en && mbc1) {
+            ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
+        }else if(mbc2 && addr < 0xA200) {
             ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
         }
     }
@@ -188,17 +190,25 @@ void CPU::write_mem(WORD addr, BYTE data) {
         rom[addr] = data;
         write_mem(addr-0x2000, data);
     }
+    // divider register
+    else if(addr == 0xFF04) {
+        rom[0xFF04] = 0;
+        divider_reg = 0;
+    }
     // timer controller
     else if(addr == 0xFF07) {
         rom[addr] = data;
         set_clock_freq();
     }
-    // divider register
-    else if(addr == 0xFF04) {
-        rom[0xFF04] = 0;
+    // DMA transfer
+    else if(addr == 0xFF46) {
+        WORD new_data = (data << 8);
+		for (int i = 0; i < 160; i++) {
+			rom[0xFE00 + i] = read_mem(new_data + i);
+		}
     }
     // write if not restrictied address
-    else if (!((addr >= 0xFEA0) && (addr < 0xFEFF))) {
+    else if (!((addr >= 0xFEA0) && (addr < 0xFF00))) {
         rom[addr] = data;
     }
 }
@@ -206,29 +216,29 @@ void CPU::write_mem(WORD addr, BYTE data) {
 void CPU::bank_mem(WORD addr, BYTE data) {
     // ram enable
     if(addr < 0x2000 && (mbc1 || mbc2)) {
-        if (mbc2 && addr & (1<<4)) {
-            return;
+        if(mbc1) {
+            if((data & 0xF) == 0xA)
+                ram_en = true;
+            else if(data == 0)
+                ram_en = false;
+        }else {
+            if(!(addr & (1 << 8))) {
+                if((data & 0xF) == 0xA)
+                    ram_en = true;
+                else if(data == 0)
+                    ram_en = false;
+            }
         }
-
-        if ((data & 0xF) == 0xA)
-            ram_en = true;
-        else if ((data & 0xF) == 0x0)
-            ram_en = false;
     }
     // rom bank change
     else if((addr >= 0x2000) && (addr < 0x4000) && (mbc1 || mbc2)) {
         if(mbc2) {
-            curr_rom_bank = data & 0xF;
-            
-            if(curr_rom_bank == 0)
-                curr_rom_bank++;
+            curr_rom_bank = data & 0xF;   
         }else {
             if(data == 0) {
                 data = 1;
             }
             curr_rom_bank = (curr_rom_bank & 0xE0) | (data & 0x1F);
-            if (curr_rom_bank == 0)
-                curr_rom_bank++;
         }
     }
     // do ROM or RAM bank change
@@ -236,19 +246,17 @@ void CPU::bank_mem(WORD addr, BYTE data) {
         if(rom_banking) {
             curr_ram_bank = 0;
             data = (data & 3) << 5;
-            if(curr_rom_bank == 0)
+            if((curr_rom_bank & 0x1F) == 0)
                 data++;
             curr_rom_bank = (curr_rom_bank & 0x1F) | data;
-            if(curr_rom_bank == 0)
-                curr_rom_bank++;
         }else {
             curr_ram_bank = data & 3;
         }
     }
     // change rom ram mode
     else if((addr >= 0x6000) && (addr < 0x8000) && mbc1) {
-        rom_banking = !(data & 0x1);
-        if (rom_banking)
+        rom_banking = !(data & 1);
+        if (data & 1)
             curr_ram_bank = 0;
     }
 }

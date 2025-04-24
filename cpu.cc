@@ -8,7 +8,7 @@
 
 CPU::CPU(BYTE* rom) : af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), pc(PC_START), 
                       cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), 
-                      mbc1(false), mbc2(false), rom_banking(true), divider_reg(0), timer_counter(1024), joypad_state(0xFF) {
+                      mbc1(false), mbc2(false), rom_banking(true), divider_reg(0), timer_counter(0), joypad_state(0xFF), clock_speed(1024) {
     // initialize rom values
     rom[0xFF05] = 0x00;
     rom[0xFF06] = 0x00;
@@ -198,7 +198,19 @@ void CPU::write_mem(WORD addr, BYTE data) {
     // timer controller
     else if(addr == 0xFF07) {
         rom[addr] = data;
-        set_clock_freq();
+
+        int new_clock_speed = 0;
+		switch(data & 3) {
+			case 0: new_clock_speed = 1024; break;
+			case 1: new_clock_speed = 16; break;
+			case 2: new_clock_speed = 64; break; 
+			case 3: new_clock_speed = 256; break;
+		}
+
+		if (clock_speed != new_clock_speed) {
+			timer_counter = 0 ;
+			clock_speed = new_clock_speed;
+		}
     }
     // DMA transfer
     else if(addr == 0xFF46) {
@@ -307,21 +319,22 @@ void CPU::check_interrupts() {
 
 void CPU::update_timers(int cycles) {
     // update divider register
-    if(255 - divider_reg < cycles)
-        rom[0xFF04]++;
     divider_reg += cycles;
+    if(divider_reg > 255) {
+        divider_reg = 0;
+        rom[0xFF04]++;
+    }
 
     // update timers if clock is enabled
-    if(read_mem(0xFF07) & (1 << 2)) {
-        timer_counter -= cycles;
-        if(timer_counter <= 0) {
-            set_clock_freq();
-
+    if(rom[0xFF07] & (1 << 2)) {
+        timer_counter += cycles;
+        if(timer_counter >= clock_speed) {
+            timer_counter = 0;
             // timer overflow
             BYTE timer = read_mem(0xFF05);
             if(timer == 255) {
                 write_mem(0xFF05, read_mem(0xFF06));
-                handle_interrupt(2);
+                interrupt(2);
             }else {
                 write_mem(0xFF05, timer+1);
             }

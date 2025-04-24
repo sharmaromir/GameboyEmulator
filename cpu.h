@@ -77,9 +77,10 @@ public:
     bool mbc1, mbc2;
     bool rom_banking;
     bool ram_en;
-    BYTE divider_reg;
+    int divider_reg;
     int timer_counter;
     BYTE joypad_state;
+    int clock_speed;
 
     void bank_mem(WORD addr, BYTE data);
     void set_clock_freq();

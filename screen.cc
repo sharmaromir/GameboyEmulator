@@ -229,6 +229,8 @@ void game_loop() {
         if (elapsed < frame_dur) {
             std::this_thread::sleep_for(frame_dur - elapsed);
         }
+        // string temp;
+        // std::getline(std::cin, temp);
     }
 }
 

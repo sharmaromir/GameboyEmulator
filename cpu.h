@@ -55,7 +55,7 @@ public:
     void write_mem(WORD addr, BYTE data);
     
     void interrupt(int signal);
-    void check_interrupts();
+    int check_interrupts();
     void handle_interrupt(int signal);
     void update_timers(int cycles);
 
@@ -81,6 +81,7 @@ public:
     int timer_counter;
     BYTE joypad_state;
     int clock_speed;
+    BYTE halted = 0;
 
     void bank_mem(WORD addr, BYTE data);
     void set_clock_freq();

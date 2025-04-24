@@ -13,8 +13,8 @@
 static const int windowWidth = 160*2;
 static const int windowHeight = 144*2;
 
-#define CYCLES_PER_FRAME 69905
-#define FPS 60
+#define CYCLES_PER_FRAME 70221
+#define FPS 59.73
 
 #define VERTICAL_BLANK_SCAN_LINE 0x90
 #define VERTICAL_BLANK_SCAN_LINE_MAX 0x99
@@ -77,17 +77,17 @@ void emulator_update() {
         // BYTE rmpc1 = cpu.read_mem(cpu.PC + 1);
         // BYTE rmpc2 = cpu.read_mem(cpu.PC + 2);
         // BYTE rmpc3 = cpu.read_mem(cpu.PC + 3);
-        // fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n", cpu.A, cpu.F, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.SP, cpu.PC, rmpc, rmpc1, rmpc2, rmpc3);
-        cpu.check_interrupts();
- 		int curr_cycles = cpu.exec();
-        lcd.update(cpu, ppu, curr_cycles);
-
-        cpu.update_timers(curr_cycles);
-        cycle_cnt += curr_cycles;
+        // if(!cpu.halted) fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n", cpu.A, cpu.F, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.SP, cpu.PC, rmpc, rmpc1, rmpc2, rmpc3);
+        int interrupt_cycles = cpu.check_interrupts();
         if(cpu.IME_next){
             cpu.IME = true;
             cpu.IME_next = false;
         }
+        int curr_cycles = cpu.exec();
+        lcd.update(cpu, ppu, curr_cycles);
+
+        cpu.update_timers(curr_cycles);
+        cycle_cnt += curr_cycles;
     }
     render_game();
 }
@@ -116,6 +116,7 @@ bool load_rom(const string& rom_name) {
 
 void emulator_setup() {
     load_rom("tests/cpu_instrs/individual/02-interrupts.gb");
+    // load_rom("tests/instr_timing/instr_timing/instr_timing.gb");
 }
 
 int get_key(int code) {
@@ -154,7 +155,7 @@ void game_loop() {
     bool quit = false;
     SDL_Event event;
     
-    std::chrono::milliseconds frame_dur(1000 / FPS);
+    std::chrono::milliseconds frame_dur((int)(1000.0 / FPS));
     while(!quit) {
         while(SDL_PollEvent(&event)) {
             int key_code;

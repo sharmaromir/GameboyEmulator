@@ -10,37 +10,37 @@ CPU::CPU(BYTE* rom) : af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE)
                       cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), 
                       mbc1(false), mbc2(false), rom_banking(true), divider_reg(0), timer_counter(0), joypad_state(0xFF), clock_speed(1024) {
     // initialize rom values
-    rom[0xFF05] = 0x00;
-    rom[0xFF06] = 0x00;
-    rom[0xFF07] = 0x00;
-    rom[0xFF10] = 0x80;
-    rom[0xFF11] = 0xBF;
-    rom[0xFF12] = 0xF3;
-    rom[0xFF14] = 0xBF;
-    rom[0xFF16] = 0x3F;
-    rom[0xFF17] = 0x00;
-    rom[0xFF19] = 0xBF;
-    rom[0xFF1A] = 0x7F;
-    rom[0xFF1B] = 0xFF;
-    rom[0xFF1C] = 0x9F;
-    rom[0xFF1E] = 0xBF;
-    rom[0xFF20] = 0xFF;
-    rom[0xFF21] = 0x00;
-    rom[0xFF22] = 0x00;
-    rom[0xFF23] = 0xBF;
-    rom[0xFF24] = 0x77;
-    rom[0xFF25] = 0xF3;
-    rom[0xFF26] = 0xF1;
-    rom[0xFF40] = 0x91;
-    rom[0xFF42] = 0x00;
-    rom[0xFF43] = 0x00;
-    rom[0xFF45] = 0x00;
-    rom[0xFF47] = 0xFC;
-    rom[0xFF48] = 0xFF;
-    rom[0xFF49] = 0xFF;
-    rom[0xFF4A] = 0x00;
-    rom[0xFF4B] = 0x00;
-    rom[0xFFFF] = 0x00;
+    // rom[0xFF05] = 0x00;
+    // rom[0xFF06] = 0x00;
+    // rom[0xFF07] = 0x00;
+    // rom[0xFF10] = 0x80;
+    // rom[0xFF11] = 0xBF;
+    // rom[0xFF12] = 0xF3;
+    // rom[0xFF14] = 0xBF;
+    // rom[0xFF16] = 0x3F;
+    // rom[0xFF17] = 0x00;
+    // rom[0xFF19] = 0xBF;
+    // rom[0xFF1A] = 0x7F;
+    // rom[0xFF1B] = 0xFF;
+    // rom[0xFF1C] = 0x9F;
+    // rom[0xFF1E] = 0xBF;
+    // rom[0xFF20] = 0xFF;
+    // rom[0xFF21] = 0x00;
+    // rom[0xFF22] = 0x00;
+    // rom[0xFF23] = 0xBF;
+    // rom[0xFF24] = 0x77;
+    // rom[0xFF25] = 0xF3;
+    // rom[0xFF26] = 0xF1;
+    // rom[0xFF40] = 0x91;
+    // rom[0xFF42] = 0x00;
+    // rom[0xFF43] = 0x00;
+    // rom[0xFF45] = 0x00;
+    // rom[0xFF47] = 0xFC;
+    // rom[0xFF48] = 0xFF;
+    // rom[0xFF49] = 0xFF;
+    // rom[0xFF4A] = 0x00;
+    // rom[0xFF4B] = 0x00;
+    // rom[0xFFFF] = 0x00;
 
     // set mbc type
     if(rom[0x147] == 1 || rom[0x147] == 2 || rom[0x147] == 3) {
@@ -134,6 +134,9 @@ WORD CPU::read_r16stk(BYTE r, bool high) {
 }
 
 BYTE CPU::read_mem(WORD addr) {
+    // if(addr == 0xFF44){
+    //     return 0x90;
+    // }
     // rom bank
     if((addr >= 0x4000) && (addr < 0x8000)) {
         return rom[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
@@ -190,10 +193,10 @@ void CPU::write_mem(WORD addr, BYTE data) {
 
         int new_clock_speed = 0;
 		switch(data & 3) {
-			case 0: new_clock_speed = 1024; break;
-			case 1: new_clock_speed = 16; break;
-			case 2: new_clock_speed = 64; break; 
-			case 3: new_clock_speed = 256; break;
+			case 0: new_clock_speed = 256; break;
+			case 1: new_clock_speed = 4; break;
+			case 2: new_clock_speed = 16; break; 
+			case 3: new_clock_speed = 64; break;
 		}
 
 		if (clock_speed != new_clock_speed) {
@@ -210,6 +213,9 @@ void CPU::write_mem(WORD addr, BYTE data) {
     }
     // write if not restrictied address
     else if (!((addr >= 0xFEA0) && (addr < 0xFF00))) {
+        if(addr == 0xFF0F){
+            // printf("Interrupts: %x\n", data);
+        }
         rom[addr] = data;
     }
 }
@@ -294,16 +300,18 @@ void CPU::interrupt(int signal) {
     write_mem(0xFF0F, read_mem(0xFF0F) | (1 << signal)); // set bit
 }
 
-void CPU::check_interrupts() {
+int CPU::check_interrupts() {
     BYTE IRR = read_mem(0xFF0F); // Interupt Request Register
     BYTE IER = read_mem(0xFFFF); // Interupt Enabled Register
     if (IME && IRR > 0) { // master interupt switch
         for (int i = 0; i < 5; i++) {
             if ((IRR & (1 << i)) && (IER & (1 << i))) {
                 handle_interrupt(i);
+                return 5;
             }
         }
     }
+    return 0;
 }
 
 void CPU::update_timers(int cycles) {
@@ -661,6 +669,15 @@ inline void CPU::restart(BYTE n) {
 }
 
 uint32_t CPU::exec() {
+    if(halted){
+        if(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F){
+            halted = false;
+            return 1;
+        } else{
+            cycles = 1;
+            return cycles;
+        }
+    }
     BYTE opc = read_mem(PC);
     // WORD pcval = PC;
     // BYTE rmpc =  opc;
@@ -836,8 +853,19 @@ uint32_t CPU::exec() {
         case 0b01110101:
             ld_r_r(6,5);
             break;
-        case 0b01110110:
-            ld_r_r(6,6);
+        case 0x76:
+            if(IME){
+                halted = true;
+            }else{
+                if(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F){
+                    halted = true;
+                }else{
+                    halted = false; // do the halt bug
+                    // printf("didn't call Halted\n");
+                }
+            }
+            PC+=1;
+            cycles = 1;
             break;
         case 0b01110111:
             ld_r_r(6,7);
@@ -945,6 +973,9 @@ uint32_t CPU::exec() {
         case 0xF0:
             cycles = 3;
             A = read_mem(0xFF00 + read_mem(PC + 1));
+            if(read_mem(PC+1) == 0x0F){
+                // printf("Indirect load to : %02X\n", A);
+            }
             PC += 2;
             break;
         // load from accumulator direct
@@ -980,16 +1011,16 @@ uint32_t CPU::exec() {
             PC += 1;
             break;
         // push register to stack
-        case 0b11'00'0101:
+        case 0b11000101:
             push_rr(0);
             break;
-        case 0b11'01'0101:
+        case 0b11010101:
             push_rr(1);
             break;
-        case 0b11'10'0101:
+        case 0b11100101:
             push_rr(2);
             break;
-        case 0b11'11'0101:
+        case 0b11110101:
             push_rr(3);
             break;
         // pop register from stack

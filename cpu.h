@@ -63,6 +63,8 @@ public:
     void key_released(int key_code);
 
     BYTE screen[144][160][3];
+    BYTE IME = 0; // interrupt master enable
+    BYTE IME_next = 0;
 
     // execute the next instruction returns the number of cycles the instruction took
     uint32_t exec();
@@ -75,8 +77,6 @@ private:
     BYTE curr_rom_bank, curr_ram_bank;
     bool mbc1, mbc2;
     bool rom_banking;
-    BYTE IME; // interrupt master enable
-    BYTE IME_next;
     bool ram_en;
     BYTE divider_reg;
     int timer_counter;

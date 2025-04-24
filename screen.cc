@@ -78,6 +78,10 @@ void emulator_update() {
         cpu.check_interrupts();
         cpu.update_timers(curr_cycles);
         cycle_cnt += curr_cycles;
+        if(cpu.IME_next){
+            cpu.IME = true;
+            cpu.IME_next = false;
+        }
     }
     render_game();
 }

@@ -8,45 +8,63 @@
 
 CPU::CPU(BYTE* rom) : af(0x01B0), bc(0x0013), de(0x00D8), hl(0x014D), sp(0xFFFE), pc(PC_START), 
                       cycles(0), rom(rom), curr_rom_bank(1), curr_ram_bank(0), 
-                      mbc1(false), mbc2(false), rom_banking(true), divider_reg(0), timer_counter(0), joypad_state(0xFF), clock_speed(1024) {
+                      mbc1(false), mbc2(false), mbc3(false), rom_banking(true), divider_reg(0), timer_counter(0), joypad_state(0xFF), clock_speed(1024) {
     // initialize rom values
-    // rom[0xFF05] = 0x00;
-    // rom[0xFF06] = 0x00;
-    // rom[0xFF07] = 0x00;
-    // rom[0xFF10] = 0x80;
-    // rom[0xFF11] = 0xBF;
-    // rom[0xFF12] = 0xF3;
-    // rom[0xFF14] = 0xBF;
-    // rom[0xFF16] = 0x3F;
-    // rom[0xFF17] = 0x00;
-    // rom[0xFF19] = 0xBF;
-    // rom[0xFF1A] = 0x7F;
-    // rom[0xFF1B] = 0xFF;
-    // rom[0xFF1C] = 0x9F;
-    // rom[0xFF1E] = 0xBF;
-    // rom[0xFF20] = 0xFF;
-    // rom[0xFF21] = 0x00;
-    // rom[0xFF22] = 0x00;
-    // rom[0xFF23] = 0xBF;
-    // rom[0xFF24] = 0x77;
-    // rom[0xFF25] = 0xF3;
-    // rom[0xFF26] = 0xF1;
-    // rom[0xFF40] = 0x91;
-    // rom[0xFF42] = 0x00;
-    // rom[0xFF43] = 0x00;
-    // rom[0xFF45] = 0x00;
-    // rom[0xFF47] = 0xFC;
-    // rom[0xFF48] = 0xFF;
-    // rom[0xFF49] = 0xFF;
-    // rom[0xFF4A] = 0x00;
-    // rom[0xFF4B] = 0x00;
-    // rom[0xFFFF] = 0x00;
+    rom[0xFF05] = 0x00;
+    rom[0xFF06] = 0x00;
+    rom[0xFF07] = 0x00;
+    rom[0xFF10] = 0x80;
+    rom[0xFF11] = 0xBF;
+    rom[0xFF12] = 0xF3;
+    rom[0xFF14] = 0xBF;
+    rom[0xFF16] = 0x3F;
+    rom[0xFF17] = 0x00;
+    rom[0xFF19] = 0xBF;
+    rom[0xFF1A] = 0x7F;
+    rom[0xFF1B] = 0xFF;
+    rom[0xFF1C] = 0x9F;
+    rom[0xFF1E] = 0xBF;
+    rom[0xFF20] = 0xFF;
+    rom[0xFF21] = 0x00;
+    rom[0xFF22] = 0x00;
+    rom[0xFF23] = 0xBF;
+    rom[0xFF24] = 0x77;
+    rom[0xFF25] = 0xF3;
+    rom[0xFF26] = 0xF1;
+    rom[0xFF40] = 0x91;
+    rom[0xFF42] = 0x00;
+    rom[0xFF43] = 0x00;
+    rom[0xFF45] = 0x00;
+    rom[0xFF47] = 0xFC;
+    rom[0xFF48] = 0xFF;
+    rom[0xFF49] = 0xFF;
+    rom[0xFF4A] = 0x00;
+    rom[0xFF4B] = 0x00;
+    rom[0xFFFF] = 0x00;
+
+    rom_clone = new BYTE[0x200000];
+    memcpy(rom_clone, rom, 0x200000);
 
     // set mbc type
     if(rom[0x147] == 1 || rom[0x147] == 2 || rom[0x147] == 3) {
         mbc1 = true;
     }else if(rom[0x147] == 5 || rom[0x147] == 6) {
         mbc2 = true;
+    }else if(rom[0x147] >= 0xF && rom[0x147] <= 0x13) {
+        mbc3 = true;
+    }
+
+    switch(rom[0x0148]){
+        case 0x00: rom_bank_count = 2; break;
+        case 0x01: rom_bank_count = 4; break;
+        case 0x02: rom_bank_count = 8; break;
+        case 0x03: rom_bank_count = 16; break;
+        case 0x04: rom_bank_count = 32; break;
+        case 0x05: rom_bank_count = 64; break;
+        case 0x06: rom_bank_count = 128; break;
+        case 0x07: rom_bank_count = 256; break;
+        case 0x08: rom_bank_count = 512; break;
+        default: rom_bank_count = 2;
     }
 
     // set ram banks to 0
@@ -139,11 +157,20 @@ BYTE CPU::read_mem(WORD addr) {
     // }
     // rom bank
     if((addr >= 0x4000) && (addr < 0x8000)) {
-        return rom[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
+        return rom_clone[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
     }
     // ram bank
     else if((addr >= 0xA000) && (addr < 0xC000)) {
-        return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
+        if(ram_en){
+            if(mbc1 || mbc2) {
+                return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
+            }else if(mbc3 && curr_ram_bank <= 0x03){
+                return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
+            }else{
+                return 0xFF;
+            }
+        } 
+        else return 0xFF;
     }
     // input
     else if(addr == 0xFF00) {
@@ -166,7 +193,7 @@ BYTE CPU::read_mem(WORD addr) {
 
 void CPU::write_mem(WORD addr, BYTE data) {
     // banking
-    if(addr < 0x8000) {
+    if(addr < 0x8000 && (mbc1 || mbc2 || mbc3)) {
         bank_mem(addr, data);
     }
     // write to ram
@@ -175,6 +202,10 @@ void CPU::write_mem(WORD addr, BYTE data) {
             ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
         }else if(mbc2 && addr < 0xA200) {
             ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
+        }else if(mbc3){
+            if(curr_ram_bank <= 0x03){
+                ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
+            }
         }
     }
     // echo ram
@@ -213,58 +244,74 @@ void CPU::write_mem(WORD addr, BYTE data) {
     }
     // write if not restrictied address
     else if (!((addr >= 0xFEA0) && (addr < 0xFF00))) {
-        if(addr == 0xFF0F){
-            // printf("Interrupts: %x\n", data);
-        }
         rom[addr] = data;
     }
 }
 
 void CPU::bank_mem(WORD addr, BYTE data) {
-    // ram enable
-    if(addr < 0x2000 && (mbc1 || mbc2)) {
-        if(mbc1) {
-            if((data & 0xF) == 0xA)
-                ram_en = true;
-            else if(data == 0)
-                ram_en = false;
-        }else {
-            if(!(addr & (1 << 8))) {
+    if(mbc1 || mbc2){
+        // ram enable
+        if(addr < 0x2000 && (mbc1 || mbc2)) {
+            if(mbc1) {
                 if((data & 0xF) == 0xA)
                     ram_en = true;
                 else if(data == 0)
                     ram_en = false;
+            }else {
+                if(!(addr & (1 << 8))) {
+                    if((data & 0xF) == 0xA)
+                        ram_en = true;
+                    else if(data == 0)
+                        ram_en = false;
+                }
             }
         }
-    }
-    // rom bank change
-    else if((addr >= 0x2000) && (addr < 0x4000) && (mbc1 || mbc2)) {
-        if(mbc2) {
-            curr_rom_bank = data & 0xF;   
-        }else {
-            if(data == 0) {
-                data = 1;
+        // rom bank change
+        else if((addr >= 0x2000) && (addr < 0x4000) && (mbc1 || mbc2)) {
+            if(mbc2) {
+                curr_rom_bank = data & 0xF;   
+            }else {
+                if(data == 0) {
+                    data = 1;
+                }
+                curr_rom_bank = (curr_rom_bank & 0xE0) | (data & 0x1F);
             }
-            curr_rom_bank = (curr_rom_bank & 0xE0) | (data & 0x1F);
         }
-    }
-    // do ROM or RAM bank change
-    else if((addr >= 0x4000) && (addr < 0x6000) && mbc1) {
-        if(rom_banking) {
-            curr_ram_bank = 0;
-            data = (data & 3) << 5;
-            if((curr_rom_bank & 0x1F) == 0)
-                data++;
-            curr_rom_bank = (curr_rom_bank & 0x1F) | data;
-        }else {
-            curr_ram_bank = data & 3;
+        // do ROM or RAM bank change
+        else if((addr >= 0x4000) && (addr < 0x6000) && mbc1) {
+            if(rom_banking) {
+                curr_ram_bank = 0;
+                data = (data & 3) << 5;
+                if((curr_rom_bank & 0x1F) == 0)
+                    data++;
+                curr_rom_bank = (curr_rom_bank & 0x1F) | data;
+            }else {
+                curr_ram_bank = data & 3;
+            }
         }
-    }
-    // change rom ram mode
-    else if((addr >= 0x6000) && (addr < 0x8000) && mbc1) {
+        // change rom ram mode
+        else if((addr >= 0x6000) && (addr < 0x8000) && mbc1) {
         rom_banking = !(data & 1);
         if (data & 1)
             curr_ram_bank = 0;
+    }
+    }else if(mbc3){
+        if(addr < 0x2000){
+            ram_en = ((data & 0xF) == 0xA);
+        }
+        else if(addr < 0x4000){
+            BYTE bank = data % rom_bank_count;
+            if(bank == 0) {
+                bank = 1;
+            }
+            curr_rom_bank = bank;
+        }
+        else if(addr < 0x6000){
+            BYTE r = data & 0xF;
+            if(r <= 3){
+                curr_ram_bank = r;
+            }
+        }
     }
 }
 
@@ -355,7 +402,7 @@ void CPU::key_pressed(int key_code) {
 }
 
 void CPU::key_released(int key_code) {
-    joypad_state = joypad_state & (~(1 << key_code));
+    joypad_state = joypad_state | (1 << key_code);
 }
 
 inline void CPU::ld_r_r(BYTE r1, BYTE r2) {
@@ -669,21 +716,24 @@ inline void CPU::restart(BYTE n) {
 }
 
 uint32_t CPU::exec() {
+    if(stopped) {
+        if(~read_mem(0xFF00) & 0xF) {
+            stopped = false;
+        }
+        return 1;
+    }
     if(halted){
         if(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F){
             halted = false;
-            return 1;
-        } else{
-            cycles = 1;
-            return cycles;
         }
+        return 1;
     }
     BYTE opc = read_mem(PC);
-    // WORD pcval = PC;
-    // BYTE rmpc =  opc;
-    // BYTE rmpc1 = read_mem(PC + 1);
-    // BYTE rmpc2 = read_mem(PC + 2);
-    // BYTE rmpc3 = read_mem(PC + 3);
+    WORD pcval = PC;
+    BYTE rmpc =  opc;
+    BYTE rmpc1 = read_mem(PC + 1);
+    BYTE rmpc2 = read_mem(PC + 2);
+    BYTE rmpc3 = read_mem(PC + 3);
     // fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n", A, F, B, C, D, E, H, L, SP, pcval, rmpc, rmpc1, rmpc2, rmpc3);
     switch(opc) {
         // nop
@@ -691,6 +741,31 @@ uint32_t CPU::exec() {
             cycles = 1;
             PC += 1;
             break;
+        // stop
+        case 0x10:
+            cycles = 1;
+            if(~read_mem(0xFF00) & 0xF) {
+                if(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F) {
+                    PC += 1;
+                    break;
+                }else {
+                    PC += 2;
+                    // halted = 1;
+                    break;
+                }
+            }else {
+                if(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F) {
+                    stopped = 1;
+                    divider_reg = 0;
+                    PC += 1;
+                    break;
+                }else {
+                    stopped = 1;
+                    divider_reg = 0;
+                    PC += 2;
+                    break;
+                }
+            }
         case 0b01000000:
             ld_r_r(0,0);
             break;
@@ -857,11 +932,10 @@ uint32_t CPU::exec() {
             if(IME){
                 halted = true;
             }else{
-                if(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F){
+                if(!(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F)){
                     halted = true;
                 }else{
                     halted = false; // do the halt bug
-                    // printf("didn't call Halted\n");
                 }
             }
             PC+=1;
@@ -973,9 +1047,6 @@ uint32_t CPU::exec() {
         case 0xF0:
             cycles = 3;
             A = read_mem(0xFF00 + read_mem(PC + 1));
-            if(read_mem(PC+1) == 0x0F){
-                // printf("Indirect load to : %02X\n", A);
-            }
             PC += 2;
             break;
         // load from accumulator direct
@@ -1863,6 +1934,9 @@ uint32_t CPU::exec() {
         default:
             std::cerr << "meow?" << std::endl;
             fprintf(stderr, "Unknown opcode: 0x%02X\n", opc);
+            printf("Invalid instruction 0xFD encountered at PC=0x%04X\n", PC);
+            printf("ROM bank: %d, RAM bank: %d\n", curr_rom_bank, curr_ram_bank);
+            // fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X JOYPAD:%02X\n", A, F, B, C, D, E, H, L, SP, pcval, rmpc, rmpc1, rmpc2, rmpc3, rom[0xFF00]);
             exit(-1);
             break;
     }

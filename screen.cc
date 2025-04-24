@@ -83,7 +83,7 @@ void emulator_update() {
             cpu.IME = true;
             cpu.IME_next = false;
         }
-        int curr_cycles = cpu.exec();
+        int curr_cycles = cpu.exec() + interrupt_cycles;
         lcd.update(cpu, ppu, curr_cycles);
 
         cpu.update_timers(curr_cycles);
@@ -115,8 +115,8 @@ bool load_rom(const string& rom_name) {
 }
 
 void emulator_setup() {
-    load_rom("tests/cpu_instrs/individual/02-interrupts.gb");
-    // load_rom("tests/instr_timing/instr_timing/instr_timing.gb");
+    load_rom("red.gb");
+    // load_rom("tests/cpu_instrs/cpu_instrs.gb");
 }
 
 int get_key(int code) {

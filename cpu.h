@@ -74,7 +74,7 @@ public:
     uint32_t cycles;
     BYTE* rom;
     BYTE curr_rom_bank, curr_ram_bank;
-    bool mbc1, mbc2;
+    bool mbc1, mbc2, mbc3;
     bool rom_banking;
     bool ram_en;
     int divider_reg;
@@ -82,6 +82,9 @@ public:
     BYTE joypad_state;
     int clock_speed;
     BYTE halted = 0;
+    BYTE stopped = 0;
+    WORD rom_bank_count = 0;
+    BYTE* rom_clone;
 
     void bank_mem(WORD addr, BYTE data);
     void set_clock_freq();

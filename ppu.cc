@@ -4,7 +4,7 @@
 PPU::PPU () {
 }
 
-int getColor(CPU& cpu, WORD addr, int colorId) {
+inline int getColor(CPU& cpu, WORD addr, int colorId) {
     BYTE palette = cpu.read_mem(addr);
     return (((palette >> (colorId * 2 + 1)) & 0b1) << 1) | ((palette >> (colorId * 2)) & 0b1);
 }
@@ -84,6 +84,14 @@ void PPU::renderTiles(CPU& cpu) {
 void PPU::renderSprites(CPU& cpu) {
     BYTE LCDCR = cpu.read_mem(0xFF40); // LCD Control Register
 
+    // cache color values
+    int colors1[4];
+    int colors2[4];
+    for (int i = 0; i < 4; i++) {
+        colors1[i] = getColor(cpu, 0xFF48, i);
+        colors2[i] = getColor(cpu, 0xFF49, i);
+    }
+
     for (int i = 0; i < 40; i++) {
         BYTE idx = i * 4;
         BYTE XPos = cpu.read_mem(idx + 0xFE00 + 1) - 8;
@@ -100,7 +108,7 @@ void PPU::renderSprites(CPU& cpu) {
             for (int j = 0; j < 8; j++) {
                 int colorBit = flags & 0b100000 ? 7 - j : j;
                 int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
-                int color = getColor(cpu, flags & 0b10000 ? 0xFF49 : 0xFF48, colorId);
+                int color = flags & 0b10000 ? colors2[colorId] : colors1[colorId];
 
                 // Sprite BG Priority
                 if (flags & 0b10000000 && (cpu.screen[scanline][XPos + 7 - j][0] != 255 || cpu.screen[scanline][XPos + 7 - j][1] != 255 || cpu.screen[scanline][XPos + 7 - j][2] != 255)) {

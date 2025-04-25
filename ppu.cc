@@ -41,7 +41,7 @@ void PPU::renderTiles(CPU& cpu) {
     }
     
     for (int i = 0; i < 160; i++) {
-        BYTE currCol = windowOn && i >= WX ? i - WX : i + SCX;
+        BYTE currCol = windowOn ? i - WX : i + SCX;
         WORD tileMem;
 
         if (LCDCR & 0b10000) {
@@ -113,7 +113,7 @@ void PPU::renderSprites(CPU& cpu) {
             BYTE data1 = cpu.read_mem(addr);
             BYTE data2 = cpu.read_mem(addr + 1);
 
-            for (int j = 7; j >= 0; j--) {
+            for (int j = 0; j < 8; j++) {
                 int colorBit = flags & 0b100000 ? 7 - j : j;
                 int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
                 int color = flags & 0b10000 ? colors2[colorId] : colors1[colorId];
@@ -122,9 +122,6 @@ void PPU::renderSprites(CPU& cpu) {
                 if (colorId == 0 || 
                     (flags & 0b10000000 && (screen[scanline][XPos + 7 - j][0] != 255 || screen[scanline][XPos + 7 - j][1] != 255 || screen[scanline][XPos + 7 - j][2] != 255)) || 
                     (XPos + 7 - j <= 0 || XPos + 7 - j >= 160 || scanline <= 0 || scanline >= 144)) {
-                    continue;
-                }
-                if (XPos + 7 - j <= 0 || XPos + 7 - j >= 160 || scanline <= 0 || scanline >= 144) {
                     continue;
                 }
 

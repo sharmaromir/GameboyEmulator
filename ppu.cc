@@ -79,20 +79,6 @@ void PPU::renderTiles(CPU& cpu) {
                 screen[scanline][i][2] = 0x0;
                 break;
         }
-        // if (dirty) {
-        //     if (scanline < cpu.dirtyMinY) {
-        //         cpu.dirtyMinY = scanline;
-        //     }
-        //     if (scanline > cpu.dirtyMaxY) {
-        //         cpu.dirtyMaxY = scanline;
-        //     }
-        //     if (i < cpu.dirtyMinX) {
-        //         cpu.dirtyMinX = i;
-        //     }
-        //     if (i > cpu.dirtyMaxX) {
-        //         cpu.dirtyMaxX = i;
-        //     }
-        // }
     }
 }
 
@@ -107,7 +93,12 @@ void PPU::renderSprites(CPU& cpu) {
         colors2[i] = getColor(cpu, 0xFF49, i);
     }
 
+    int spriteCounter = 0;
     for (int i = 0; i < 40; i++) {
+        if (spriteCounter >= 10) {
+            break;
+        }
+
         BYTE idx = i * 4;
         BYTE XPos = cpu.read_mem(idx + 0xFE00 + 1) - 8;
         BYTE YPos = cpu.read_mem(idx + 0xFE00) - 16;
@@ -116,21 +107,33 @@ void PPU::renderSprites(CPU& cpu) {
         int spriteSize = LCDCR & 0b100 ? 16 : 8;
 
         if (scanline >= YPos && scanline < YPos + spriteSize) {
-            WORD addr = 0x8000 + cpu.read_mem(idx + 0xFE00 + 2) * 16 + 2 * (flags & 0b1000000 ? YPos + spriteSize - scanline : scanline - YPos);
+            spriteCounter++;
+
+            WORD addr = 0x8000 + cpu.read_mem(idx + 0xFE00 + 2) * 16 + 2 * (flags & 0b1000000 ? YPos + spriteSize - scanline - 1 : scanline - YPos);
             BYTE data1 = cpu.read_mem(addr);
             BYTE data2 = cpu.read_mem(addr + 1);
 
-            for (int j = 0; j < 8; j++) {
+            for (int j = 7; j >= 0; j--) {
                 int colorBit = flags & 0b100000 ? 7 - j : j;
                 int colorId = (((data2 >> colorBit) & 0b1) << 1) | ((data1 >> colorBit) & 0b1);
                 int color = flags & 0b10000 ? colors2[colorId] : colors1[colorId];
 
                 // Sprite BG Priority
-                if (flags & 0b10000000 && (screen[scanline][XPos + 7 - j][0] != 255 || screen[scanline][XPos + 7 - j][1] != 255 || screen[scanline][XPos + 7 - j][2] != 255)) {
+                if (colorId == 0 || 
+                    (flags & 0b10000000 && (screen[scanline][XPos + 7 - j][0] != 255 || screen[scanline][XPos + 7 - j][1] != 255 || screen[scanline][XPos + 7 - j][2] != 255)) || 
+                    (XPos + 7 - j <= 0 || XPos + 7 - j >= 160 || scanline <= 0 || scanline >= 144)) {
+                    continue;
+                }
+                if (XPos + 7 - j <= 0 || XPos + 7 - j >= 160 || scanline <= 0 || scanline >= 144) {
                     continue;
                 }
 
                 switch (color) {
+                    case 0:
+                        screen[scanline][XPos + 7 - j][0] = 255;
+                        screen[scanline][XPos + 7 - j][1] = 255;
+                        screen[scanline][XPos + 7 - j][2] = 255;
+                        break;
                     case 1:
                         screen[scanline][XPos + 7 - j][0] = 0xCC;
                         screen[scanline][XPos + 7 - j][1] = 0xCC;
@@ -147,23 +150,10 @@ void PPU::renderSprites(CPU& cpu) {
                         screen[scanline][XPos + 7 - j][2] = 0x0;
                         break;
                 }
-                // if (dirty) {
-                //     if (scanline < cpu.dirtyMinY) {
-                //         cpu.dirtyMinY = scanline;
-                //     }
-                //     if (scanline > cpu.dirtyMaxY) {
-                //         cpu.dirtyMaxY = scanline;
-                //     }
-                //     if (XPos + 7 - j < cpu.dirtyMinX) {
-                //         cpu.dirtyMinX = XPos + 7 - j;
-                //     }
-                //     if (XPos + 7 - j > cpu.dirtyMaxX) {
-                //         cpu.dirtyMaxX = XPos + 7 - j;
-                //     }
-                // }
             }
         }
     }
+    printf("%d\n", spriteCounter);
 }
 
 void PPU::writePixels(CPU& cpu) {

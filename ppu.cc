@@ -153,7 +153,6 @@ void PPU::renderSprites(CPU& cpu) {
             }
         }
     }
-    printf("%d\n", spriteCounter);
 }
 
 void PPU::writePixels(CPU& cpu) {

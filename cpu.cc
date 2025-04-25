@@ -152,11 +152,11 @@ WORD CPU::read_r16stk(BYTE r, bool high) {
 }
 
 BYTE CPU::read_mem(WORD addr) {
-    // if(addr == 0xFF44){
-    //     return 0x90;
-    // }
     // rom bank
     if((addr >= 0x4000) && (addr < 0x8000)) {
+        if(!mbc1 && !mbc2 && !mbc3) {
+            return rom[addr];
+        }
         return rom_clone[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
     }
     // ram bank
@@ -170,6 +170,9 @@ BYTE CPU::read_mem(WORD addr) {
                 return 0xFF;
             }
         } 
+        else if(!(mbc1 || mbc2 || mbc3)) {
+            return ram[(addr - 0xA000)];
+        }
         else return 0xFF;
     }
     // input
@@ -206,6 +209,8 @@ void CPU::write_mem(WORD addr, BYTE data) {
             if(curr_ram_bank <= 0x03){
                 ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
             }
+        }else if(!(mbc1 || mbc2 || mbc3)){
+            ram[(addr-0xA000)] = data;
         }
     }
     // echo ram
@@ -751,7 +756,7 @@ uint32_t CPU::exec() {
         // stop
         case 0x10:
             cycles = 1;
-            if(~read_mem(0xFF00) & 0xF) {
+            if((~read_mem(0xFF00) & 0xF) || true) {
                 if(read_mem(0xFFFF) & read_mem(0xFF0F) & 0x1F) {
                     PC += 1;
                     break;
@@ -1940,8 +1945,8 @@ uint32_t CPU::exec() {
             break;
         default:
             std::cerr << "meow?" << std::endl;
-            fprintf(stderr, "Unknown opcode: 0x%02X\n", opc);
-            printf("Invalid instruction 0xFD encountered at PC=0x%04X\n", PC);
+            printf("Unknown opcode: 0x%02X\n", opc);
+            printf("Invalid instruction %x encountered at PC=0x%04X\n", opc, PC);
             printf("ROM bank: %d, RAM bank: %d\n", curr_rom_bank, curr_ram_bank);
             // fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X JOYPAD:%02X\n", A, F, B, C, D, E, H, L, SP, pcval, rmpc, rmpc1, rmpc2, rmpc3, rom[0xFF00]);
             exit(-1);

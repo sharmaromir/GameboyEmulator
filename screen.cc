@@ -10,11 +10,11 @@
 #include "cpu.h"
 #include "ppu.h"
 
-static const int windowWidth = 160;
-static const int windowHeight = 144;
+static const int windowWidth = 160*2;
+static const int windowHeight = 144*2;
 
-#define CYCLES_PER_FRAME 70221*2
-#define FPS 59.73/2
+#define CYCLES_PER_FRAME 70221
+#define FPS 59.73
 
 #define VERTICAL_BLANK_SCAN_LINE 0x90
 #define VERTICAL_BLANK_SCAN_LINE_MAX 0x99
@@ -72,7 +72,7 @@ std::vector<BYTE> dirtyRect;
 
 void render_game() {
     glLoadIdentity();
-	glPixelZoom(1, -1);
+	glPixelZoom(2, -2);
     if (count < 2) {
         glRasterPos2i(0, 0);
         glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, cpu.screen); // SCREEN DATA GOES HERE
@@ -151,14 +151,14 @@ bool load_rom(const string& rom_name) {
 
 
     cpu = CPU(rom);
-    fin = fopen("red.sav", "rb");
+    // fin = fopen("red.sav", "rb");
 
-    if (fin) {
-        fread(cpu.ram, 1, 0x8000, fin);
-        fclose(fin);
-    } else {
-        memset(cpu.ram, 0, 0x8000);
-    }
+    // if (fin) {
+    //     fread(cpu.ram, 1, 0x8000, fin);
+    //     fclose(fin);
+    // } else {
+    //     memset(cpu.ram, 0, 0x8000);
+    // }
     lcd = LCD();
     ppu = PPU();
 
@@ -166,7 +166,7 @@ bool load_rom(const string& rom_name) {
 }
 
 void emulator_setup() {
-    load_rom("red.gb");
+    load_rom("tetris.gb");
     // load_rom("tests/cpu_instrs/cpu_instrs.gb");
 }
 
@@ -249,14 +249,14 @@ int main(int argc, char** argv) {
     emulator_setup();
     game_loop();
     // SDL_Delay(3000);
-    FILE* fout;
-    fout = fopen("red.sav", "wb");
-    if (fout) {
-        fwrite(cpu.ram, 1, 0x8000, fout);
-        fclose(fout);
-    } else {
-        printf("Error writing save file\n");
-    }
+    // FILE* fout;
+    // fout = fopen("red.sav", "wb");
+    // if (fout) {
+    //     fwrite(cpu.ram, 1, 0x8000, fout);
+    //     fclose(fout);
+    // } else {
+    //     printf("Error writing save file\n");
+    // }
     SDL_Quit( ) ;
     return 0;
 }

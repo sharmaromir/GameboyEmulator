@@ -13,8 +13,8 @@
 static const int windowWidth = 160*2;
 static const int windowHeight = 144*2;
 
-#define CYCLES_PER_FRAME 70221
-#define FPS 59.73
+#define CYCLES_PER_FRAME 70221*2
+#define FPS 59.73/2
 
 #define VERTICAL_BLANK_SCAN_LINE 0x90
 #define VERTICAL_BLANK_SCAN_LINE_MAX 0x99
@@ -27,6 +27,7 @@ CPU cpu;
 LCD lcd;
 PPU ppu;
 int cycles_this_update = 0;
+bool saving;
 
 void init_screen() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -137,7 +138,7 @@ void emulator_update() {
 
 bool load_rom(const string& rom_name) {
     BYTE rom[MAX_ROM_SIZE];
-
+    saving = rom_name == "red.gb";
     FILE* fin;
     fin = fopen(rom_name.c_str(), "rb");
     size_t read_count = fread(rom, 1, MAX_ROM_SIZE, fin);
@@ -151,14 +152,16 @@ bool load_rom(const string& rom_name) {
 
 
     cpu = CPU(rom);
-    // fin = fopen("red.sav", "rb");
+    if(saving){
+        fin = fopen("red.sav", "rb");
 
-    // if (fin) {
-    //     fread(cpu.ram, 1, 0x8000, fin);
-    //     fclose(fin);
-    // } else {
-    //     memset(cpu.ram, 0, 0x8000);
-    // }
+        if (fin) {
+            fread(cpu.ram, 1, 0x8000, fin);
+            fclose(fin);
+        } else {
+            memset(cpu.ram, 0, 0x8000);
+        }
+    } 
     lcd = LCD();
     ppu = PPU();
 
@@ -249,14 +252,16 @@ int main(int argc, char** argv) {
     emulator_setup();
     game_loop();
     // SDL_Delay(3000);
-    // FILE* fout;
-    // fout = fopen("red.sav", "wb");
-    // if (fout) {
-    //     fwrite(cpu.ram, 1, 0x8000, fout);
-    //     fclose(fout);
-    // } else {
-    //     printf("Error writing save file\n");
-    // }
+    if(saving){
+        FILE* fout;
+        fout = fopen("red.sav", "wb");
+        if (fout) {
+            fwrite(cpu.ram, 1, 0x8000, fout);
+            fclose(fout);
+        } else {
+            printf("Error writing save file\n");
+        }
+    }
     SDL_Quit( ) ;
     return 0;
 }

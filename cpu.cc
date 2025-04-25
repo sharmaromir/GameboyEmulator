@@ -153,17 +153,18 @@ WORD CPU::read_r16stk(BYTE r, bool high) {
 
 BYTE CPU::read_mem(WORD addr) {
     // rom bank
-    if((addr >= 0x4000) && (addr < 0x8000) && (mbc1 || mbc2 || mbc3)) {
-        return rom_clone[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
+    if((addr >= 0x4000) && (addr < 0x8000)) {
+        if(mbc1 || mbc2 || mbc3) return rom_clone[(addr - 0x4000) + curr_rom_bank*0x4000];
+        return rom[(addr - 0x4000) + (curr_rom_bank * 0x4000)];
     }
     // ram bank
-    else if((addr >= 0xA000) && (addr < 0xC000) && ram_en) {
+    else if((addr >= 0xA000) && (addr < 0xC000)) {
         if(mbc1 || mbc2) {
             return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
         }else if(mbc3 && curr_ram_bank <= 0x03){
             return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
         }else{
-            return 0xFF;
+            return ram[(addr - 0xA000) + (curr_ram_bank * 0x2000)];
         }
     }
     // input
@@ -187,11 +188,11 @@ BYTE CPU::read_mem(WORD addr) {
 
 void CPU::write_mem(WORD addr, BYTE data) {
     // banking
-    if(addr < 0x8000 && (mbc1 || mbc2 || mbc3)) {
+    if(addr < 0x8000) {
         bank_mem(addr, data);
     }
     // write to ram
-    else if((addr >= 0xA000) && (addr < 0xC000) && (mbc1 || mbc2 || mbc3)) {
+    else if((addr >= 0xA000) && (addr < 0xC000)) {
         if(ram_en && mbc1) {
             ram[(addr - 0xA000) + (curr_ram_bank*0x2000)] = data;
         }else if(mbc2 && addr < 0xA200) {

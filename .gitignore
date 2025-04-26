@@ -3,5 +3,6 @@
 
 *.o
 *.run
+*.sav
 screen
 screen.log

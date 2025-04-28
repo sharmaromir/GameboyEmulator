@@ -168,10 +168,6 @@ bool load_rom(const string& rom_name) {
     return true;
 }
 
-void emulator_setup() {
-    load_rom("tetris.gb");
-    // load_rom("tests/cpu_instrs/cpu_instrs.gb");
-}
 
 int get_key(int code) {
     switch(code) {
@@ -247,9 +243,12 @@ void game_loop() {
 }
 
 int main(int argc, char** argv) {
-    
+    if (argc < 2) {
+        std::cerr << "No ROM name provided" << std::endl;
+        return 1;
+    }
     init_screen();
-    emulator_setup();
+    load_rom(argv[1]);
     game_loop();
     // SDL_Delay(3000);
     if(saving){

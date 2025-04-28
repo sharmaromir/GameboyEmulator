@@ -21,14 +21,6 @@ all: $(EMULATOR)
 $(EMULATOR): $(OBJS)
 	$(CPP_COMPILER) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-#———— Build your SDL “game” helper ———————————
-game: $(SCREEN)
-	./$(SCREEN) 2> screen.log
-
-# Link screen.cc with all object files
-$(SCREEN): screen.cc $(filter-out screen.o, $(OBJS))
-	$(CPP_COMPILER) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
-
 #———— Compile each .cc to .o ———————————————
 %.o: %.cc
 	$(CPP_COMPILER) $(CXXFLAGS) -c $< -o $@
